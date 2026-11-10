@@ -1,0 +1,27 @@
+# Visual Studio & IDE files
+.vs/
+*.user
+*.userosscache
+*.sln.docstates
+*.suo
+
+# Build & Compilation Output
+bin/
+obj/
+[Bb]in/
+[Oo]bj/
+Generated Files/
+
+# Windows App SDK / MSIX artifacts
+AppPackages/
+BundleArtifacts/
+Package.StoreAssociation.xml
+
+# Logs & Temporary files
+*.log
+crash.log
+*.tmp
+
+# User specific local config (keep template tracked)
+config.json
+!config.example.json

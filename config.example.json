@@ -1,0 +1,39 @@
+{
+  "theme": "dark",
+  "default_color_theme": "blue",
+  "last_path": "C:\\",
+  "include_full_path": false,
+  "include_extension": true,
+  "favorites": [
+    "C:\\"
+  ],
+  "recents": [],
+  "editor_extensions": [
+    ".md",
+    ".txt",
+    ".json"
+  ],
+  "editor_wrap": true,
+  "splitter_distance": 450,
+  "window": {
+    "x": 100,
+    "y": 100,
+    "width": 1400,
+    "height": 850,
+    "maximized": false
+  },
+  "workspace": {
+    "tabs": [
+      {
+        "path": "C:\\",
+        "mode": "flat",
+        "filter": "",
+        "show_all": false,
+        "sort_col": "name",
+        "sort_desc": false,
+        "selected_file": null
+      }
+    ],
+    "active": 0
+  }
+}

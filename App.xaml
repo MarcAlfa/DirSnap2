@@ -1,0 +1,48 @@
+<Application
+    x:Class="DirSnap2.App"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="AppBackgroundBrush" Color="#1F1F1F" />
+                    <SolidColorBrush x:Key="AppSurfaceBrush" Color="#252526" />
+                    <SolidColorBrush x:Key="AppBorderBrush" Color="#333333" />
+                    <SolidColorBrush x:Key="AppAccentBrush" Color="#0078D4" />
+                    <SolidColorBrush x:Key="AppAccentHoverBrush" Color="#106EBE" />
+                    <SolidColorBrush x:Key="AppAccentSubtleBrush" Color="#260078D4" />
+                    <SolidColorBrush x:Key="TabViewItemHeaderBackgroundSelected" Color="#260078D4" />
+                    <SolidColorBrush x:Key="TabViewItemHeaderForegroundSelected" Color="#0078D4" />
+                    <SolidColorBrush x:Key="TabViewItemStrokeSelected" Color="#0078D4" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="AppBackgroundBrush" Color="#F3F3F3" />
+                    <SolidColorBrush x:Key="AppSurfaceBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="AppBorderBrush" Color="#E5E5E5" />
+                    <SolidColorBrush x:Key="AppAccentBrush" Color="#0078D4" />
+                    <SolidColorBrush x:Key="AppAccentHoverBrush" Color="#106EBE" />
+                    <SolidColorBrush x:Key="AppAccentSubtleBrush" Color="#260078D4" />
+                    <SolidColorBrush x:Key="TabViewItemHeaderBackgroundSelected" Color="#260078D4" />
+                    <SolidColorBrush x:Key="TabViewItemHeaderForegroundSelected" Color="#0078D4" />
+                    <SolidColorBrush x:Key="TabViewItemStrokeSelected" Color="#0078D4" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+
+            <SolidColorBrush x:Key="AppAccentBrush" Color="#0078D4" />
+            <SolidColorBrush x:Key="AppAccentHoverBrush" Color="#106EBE" />
+            <SolidColorBrush x:Key="AppAccentSubtleBrush" Color="#260078D4" />
+
+            <Style x:Key="AppAccentButtonStyle" TargetType="Button">
+                <Setter Property="Background" Value="{ThemeResource AppAccentBrush}" />
+                <Setter Property="Foreground" Value="White" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="CornerRadius" Value="4" />
+            </Style>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

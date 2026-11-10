@@ -1,0 +1,21 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36109.1
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DirSnap2", "DirSnap2.csproj", "{9E1B7C32-5D4F-4E8A-9A23-4F7E9D2C3B4A}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{9E1B7C32-5D4F-4E8A-9A23-4F7E9D2C3B4A}.Debug|x64.ActiveCfg = Debug|x64
+		{9E1B7C32-5D4F-4E8A-9A23-4F7E9D2C3B4A}.Debug|x64.Build.0 = Debug|x64
+		{9E1B7C32-5D4F-4E8A-9A23-4F7E9D2C3B4A}.Release|x64.ActiveCfg = Release|x64
+		{9E1B7C32-5D4F-4E8A-9A23-4F7E9D2C3B4A}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
