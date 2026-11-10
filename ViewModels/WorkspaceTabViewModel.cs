@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DirSnap2.Models;
@@ -34,6 +35,31 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
 
     [ObservableProperty]
     private string _tabTitle = "C:\\";
+
+    [ObservableProperty]
+    private bool _isActiveTab;
+
+    private static readonly SolidColorBrush TransparentTabBrush = new(Microsoft.UI.Colors.Transparent);
+
+    public SolidColorBrush TabHeaderBackground =>
+        IsActiveTab && Application.Current.Resources.TryGetValue("AppAccentSubtleBrush", out var b1) && b1 is SolidColorBrush sb
+            ? sb
+            : TransparentTabBrush;
+
+    public SolidColorBrush TabHeaderBorderBrush =>
+        IsActiveTab && Application.Current.Resources.TryGetValue("AppAccentBrush", out var b2) && b2 is SolidColorBrush ab
+            ? ab
+            : TransparentTabBrush;
+
+    public Windows.UI.Text.FontWeight TabHeaderFontWeight =>
+        IsActiveTab ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal;
+
+    partial void OnIsActiveTabChanged(bool value)
+    {
+        OnPropertyChanged(nameof(TabHeaderBackground));
+        OnPropertyChanged(nameof(TabHeaderBorderBrush));
+        OnPropertyChanged(nameof(TabHeaderFontWeight));
+    }
 
     [ObservableProperty]
     private string _mode = "flat"; // "flat" or "tree"

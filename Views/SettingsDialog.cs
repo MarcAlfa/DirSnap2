@@ -33,12 +33,13 @@ public sealed class SettingsDialog : ContentDialog
         Title = "Settings & About";
         PrimaryButtonText = "Close";
         DefaultButton = ContentDialogButton.Primary;
+        RequestedTheme = _themeService.CurrentTheme;
 
         var scrollViewer = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             MaxHeight = 520,
-            Width = 460
+            Width = 520
         };
 
         var rootStack = new StackPanel
@@ -193,32 +194,47 @@ public sealed class SettingsDialog : ContentDialog
             BorderBrush = (Brush)Application.Current.Resources["AppBorderBrush"],
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(12),
+            Padding = new Thickness(14),
             Margin = new Thickness(8, 0, 0, 0)
         };
 
-        var aboutStack = new StackPanel { Spacing = 4 };
-        aboutStack.Children.Add(new TextBlock
+        var aboutGrid = new Grid();
+        aboutGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        aboutGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var aboutTextStack = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
+        aboutTextStack.Children.Add(new TextBlock
         {
             Text = AppConstants.AppTitle,
-            FontSize = 14,
+            FontSize = 13,
             FontWeight = Microsoft.UI.Text.FontWeights.Bold
         });
-        aboutStack.Children.Add(new TextBlock
+        aboutTextStack.Children.Add(new TextBlock
         {
-            Text = "Windows 11 Native Directory Snapshot & Text Editor Utility",
-            FontSize = 12,
+            Text = "© alpha-studio.it",
+            FontSize = 11,
             Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
         });
-        aboutStack.Children.Add(new TextBlock
-        {
-            Text = "C# / .NET 8 • WinUI 3 (Windows App SDK 1.6 Unpackaged) • Fluent Design & Mica",
-            FontSize = 11,
-            Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
-            Margin = new Thickness(0, 4, 0, 0)
-        });
+        Grid.SetColumn(aboutTextStack, 0);
+        aboutGrid.Children.Add(aboutTextStack);
 
-        aboutBorder.Child = aboutStack;
+        var openAboutBtn = new Button
+        {
+            Content = "About DirSnap 2...",
+            Padding = new Thickness(12, 6, 12, 6),
+            FontSize = 11,
+            Style = (Style)Application.Current.Resources["AppAccentButtonStyle"],
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        openAboutBtn.Click += (_, _) =>
+        {
+            var aboutWin = new AboutWindow(_themeService);
+            aboutWin.Activate();
+        };
+        Grid.SetColumn(openAboutBtn, 1);
+        aboutGrid.Children.Add(openAboutBtn);
+
+        aboutBorder.Child = aboutGrid;
         rootStack.Children.Add(aboutBorder);
 
         scrollViewer.Content = rootStack;

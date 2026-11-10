@@ -45,6 +45,10 @@ public sealed partial class MainViewModel : ObservableObject
             CurrentAddressBarPath = newValue.CurrentPath;
             newValue.SyncSelectedFile();
         }
+        foreach (var t in Tabs)
+        {
+            t.IsActiveTab = (t == newValue);
+        }
         SaveWorkspace();
     }
 
@@ -158,6 +162,11 @@ public sealed partial class MainViewModel : ObservableObject
         {
             ActiveTab = Tabs[0];
             ActiveTabIndex = 0;
+        }
+
+        foreach (var t in Tabs)
+        {
+            t.IsActiveTab = (t == ActiveTab);
         }
     }
 

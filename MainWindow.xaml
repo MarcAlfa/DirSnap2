@@ -29,10 +29,21 @@
                  TabCloseRequested="MainTabView_TabCloseRequested">
             <TabView.TabItemTemplate>
                 <DataTemplate>
-                    <TabViewItem Header="{Binding TabTitle}" ToolTipService.ToolTip="{Binding CurrentPath}">
-                        <TabViewItem.IconSource>
-                            <FontIconSource Glyph="&#xE8B7;" Foreground="{ThemeResource AppAccentBrush}" />
-                        </TabViewItem.IconSource>
+                    <TabViewItem ToolTipService.ToolTip="{Binding CurrentPath}">
+                        <TabViewItem.Header>
+                            <Border Background="{Binding TabHeaderBackground}"
+                                    BorderBrush="{Binding TabHeaderBorderBrush}"
+                                    BorderThickness="0,0,0,2"
+                                    CornerRadius="4,4,0,0"
+                                    Padding="8,4">
+                                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                    <FontIcon Glyph="&#xE8B7;" FontSize="12" Foreground="{ThemeResource AppAccentBrush}" />
+                                    <TextBlock Text="{Binding TabTitle}" 
+                                               FontWeight="{Binding TabHeaderFontWeight}" 
+                                               FontSize="12" />
+                                </StackPanel>
+                            </Border>
+                        </TabViewItem.Header>
                     </TabViewItem>
                 </DataTemplate>
             </TabView.TabItemTemplate>

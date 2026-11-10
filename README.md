@@ -5,7 +5,7 @@
 ---
 
 ## 📌 Versioning
-- **Current Version**: `0.0.1`
+- **Current Version**: `0.0.2`
 - **Single Source of Truth**: Defined strictly in `AppConstants.cs` (`AppConstants.AppVersion`). All components, UI titles, export headers, and metadata reference this single constant.
 
 ---
@@ -112,7 +112,14 @@ Replaces the old Lists tab with an intuitive "shopping cart" paradigm:
   - [x] Format JSON action & validation
   - [x] Encoding & newline preservation (`CRLF` / `LF`, UTF-8, UTF-8 BOM, ANSI)
   - [x] Read-only unlock for non-standard text files
-- [x] **Phase 7: Alignment with DirSnap v1 & Tree/Editor Polish**
+- [x] **Phase 8: Version 0.0.2 Polish & Animated About Tribute**
+  - [x] Version bump to `0.0.2` in `AppConstants.cs`
+  - [x] Settings dialog dark/light theme alignment and widened layout (520px width)
+  - [x] Dedicated Animated About window with bouncing Alpha Studio logo (`assets/as_logo_trasp.jpg`) paying tribute to v1 and PrinT-fILes
+  - [x] Prominent accent color highlighting on active workspace tab header
+  - [x] Accent color row selection highlight (`AppAccentSubtleBrush` and `AppAccentBrush` stroke) on selected file/folder
+  - [x] Warm yellow foreground (`#FFD166`) on current opened file name in editor header
+  - [x] Neutral uncolored toggle styling for Word Wrap button
   - [x] Per-tab selected file memory: switching tabs immediately restores the previously selected file, editor/preview state, and scroll position.
   - [x] Per-tab file persistence across restarts: each tab's active file is saved in `config.json` and restored on launch.
   - [x] V1 compact typography: monospaced font (`Consolas, Cascadia Code, Courier New`) at 11.5pt across Name, Size, and Modified columns.
