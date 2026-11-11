@@ -196,6 +196,14 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
     private bool _editorWrap = true;
 
     [ObservableProperty]
+    private double _editorFontSize = 13;
+
+    public void NotifyEditorFontSizeChanged()
+    {
+        EditorFontSize = _configService.Current.EditorFontSize > 0 ? _configService.Current.EditorFontSize : 13;
+    }
+
+    [ObservableProperty]
     private string _folderSummaryText = "0 folders, 0 files";
 
     [ObservableProperty]
@@ -216,6 +224,7 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
         _snapListService = snapListService;
         _configService = configService;
         _configService.ConfigChanged += OnConfigChanged;
+        _editorFontSize = _configService.Current.EditorFontSize > 0 ? _configService.Current.EditorFontSize : 13;
 
         if (initialTabState != null)
         {
@@ -296,6 +305,7 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
 
     private void OnConfigChanged()
     {
+        EditorFontSize = _configService.Current.EditorFontSize > 0 ? _configService.Current.EditorFontSize : 13;
         Refresh();
         // Only re-select if the editor does not hold dirty unsaved changes
         if (!string.IsNullOrEmpty(CurrentEditingFilePath) && !IsEditorDirty)

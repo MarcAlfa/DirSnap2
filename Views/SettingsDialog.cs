@@ -34,6 +34,10 @@ public sealed class SettingsDialog : ContentDialog
     // References for dynamic light/dark contrast updates
     private readonly TextBlock _appearanceHeader;
     private readonly TextBlock _accentTitle;
+    private readonly TextBlock _fontSizeTitle;
+    private readonly TextBlock _fontSizeHelp;
+    private readonly NumberBox _fontSizeBox;
+    private readonly TextBlock _fontSizeSampleText;
     private readonly TextBlock _extensionsHeader;
     private readonly TextBlock _extHelp;
     private readonly TextBlock _snapHeader;
@@ -183,6 +187,90 @@ public sealed class SettingsDialog : ContentDialog
         accentRow.Children.Add(CreateAccentButton("teal", "#14B8A6", "Teal"));
         accentRow.Children.Add(CreateAccentButton("orange", "#F97316", "Orange"));
         appearancePanel.Children.Add(accentRow);
+
+        // Preview Window Font Size (preview panel only)
+        _fontSizeTitle = new TextBlock
+        {
+            Text = "Preview Window Font Size (Preview panel only):",
+            FontSize = 12,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Margin = new Thickness(0, 10, 0, 2)
+        };
+        _fontSizeHelp = new TextBlock
+        {
+            Text = "Adjust font size in points for the text editor and markdown preview panel (default: 13 pt).",
+            FontSize = 11,
+            Margin = new Thickness(0, 0, 0, 4)
+        };
+        appearancePanel.Children.Add(_fontSizeTitle);
+        appearancePanel.Children.Add(_fontSizeHelp);
+
+        var fontSizeControlRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        _fontSizeBox = new NumberBox
+        {
+            Value = _configService.Current.EditorFontSize > 0 ? _configService.Current.EditorFontSize : 13,
+            Minimum = 9,
+            Maximum = 32,
+            SmallChange = 1,
+            LargeChange = 2,
+            SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Inline,
+            Width = 110,
+            FontSize = 12
+        };
+
+        _fontSizeSampleText = new TextBlock
+        {
+            Text = "AaBbCc 123 - Sample Preview",
+            FontFamily = new FontFamily("Consolas, Cascadia Code, Courier New"),
+            FontSize = _fontSizeBox.Value,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(10, 0, 0, 0)
+        };
+
+        _fontSizeBox.ValueChanged += (sender, _) =>
+        {
+            if (double.IsNaN(sender.Value) || sender.Value < 8 || sender.Value > 48)
+                return;
+
+            double newSize = Math.Round(sender.Value);
+            _fontSizeSampleText.FontSize = newSize;
+            _configService.Current.EditorFontSize = newSize;
+            _configService.Save();
+
+            if (_parentWindow is MainWindow mw)
+            {
+                foreach (var tab in mw.ViewModel.Tabs)
+                {
+                    tab.NotifyEditorFontSizeChanged();
+                }
+            }
+        };
+
+        fontSizeControlRow.Children.Add(_fontSizeBox);
+
+        double[] presets = { 11, 12, 13, 14, 16, 18 };
+        foreach (var p in presets)
+        {
+            var pBtn = new Button
+            {
+                Content = p == 13 ? "13 (Def)" : p.ToString(),
+                Padding = new Thickness(7, 3, 7, 3),
+                FontSize = 11,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            double val = p;
+            pBtn.Click += (_, _) => _fontSizeBox.Value = val;
+            fontSizeControlRow.Children.Add(pBtn);
+        }
+
+        fontSizeControlRow.Children.Add(_fontSizeSampleText);
+        appearancePanel.Children.Add(fontSizeControlRow);
 
         rootStack.Children.Add(appearancePanel);
 
@@ -369,6 +457,10 @@ public sealed class SettingsDialog : ContentDialog
 
         _appearanceHeader.Foreground = primaryBrush;
         _accentTitle.Foreground = primaryBrush;
+        _fontSizeTitle.Foreground = primaryBrush;
+        _fontSizeHelp.Foreground = secondaryBrush;
+        _fontSizeSampleText.Foreground = primaryBrush;
+        _fontSizeBox.Foreground = primaryBrush;
         _extensionsHeader.Foreground = primaryBrush;
         _extHelp.Foreground = secondaryBrush;
         _snapHeader.Foreground = primaryBrush;

@@ -88,6 +88,9 @@ public sealed class AppConfig
     [JsonPropertyName("editor_wrap")]
     public bool EditorWrap { get; set; } = true;
 
+    [JsonPropertyName("editor_font_size")]
+    public double EditorFontSize { get; set; } = 13;
+
     [JsonPropertyName("splitter_distance")]
     public double SplitterDistance { get; set; } = 450;
 

@@ -58,6 +58,8 @@ public sealed partial class WorkspaceTabView : UserControl
         if (_currentVm != null)
         {
             _currentVm.PropertyChanged += OnViewModelPropertyChanged;
+            MarkdownRichTextBlock.FontSize = _currentVm.EditorFontSize;
+            EditorTextBox.FontSize = _currentVm.EditorFontSize;
             _currentVm.SyncSelectedFile();
             UpdateEditorViewMode();
             if (_currentVm.SelectedItem != null)
@@ -78,6 +80,14 @@ public sealed partial class WorkspaceTabView : UserControl
             or nameof(WorkspaceTabViewModel.EditorTextWrapping))
         {
             UpdateEditorViewMode();
+        }
+        else if (e.PropertyName == nameof(WorkspaceTabViewModel.EditorFontSize))
+        {
+            if (ViewModel != null)
+            {
+                MarkdownRichTextBlock.FontSize = ViewModel.EditorFontSize;
+                EditorTextBox.FontSize = ViewModel.EditorFontSize;
+            }
         }
     }
 

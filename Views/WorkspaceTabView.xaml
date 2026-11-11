@@ -518,7 +518,7 @@
                                    IsTextSelectionEnabled="True"
                                    TextWrapping="{Binding EditorTextWrapping}"
                                    FontFamily="Consolas, Cascadia Code, Courier New"
-                                   FontSize="13" />
+                                   FontSize="{Binding EditorFontSize}" />
                 </ScrollViewer>
 
                 <!-- State 3B: Raw / Editable Editor Content (Monospace TextBox) -->
@@ -532,7 +532,7 @@
                          ScrollViewer.HorizontalScrollBarVisibility="Auto"
                          ScrollViewer.HorizontalScrollMode="Auto"
                          FontFamily="Consolas, Cascadia Code, Courier New"
-                         FontSize="13"
+                         FontSize="{Binding EditorFontSize}"
                          Foreground="{ThemeResource TextFillColorPrimaryBrush}"
                          Padding="12"
                          BorderThickness="0"

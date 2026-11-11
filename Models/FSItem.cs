@@ -79,14 +79,16 @@ public sealed partial class FSItem : ObservableObject
                 return sab;
             }
 
-            if (Application.Current.Resources.TryGetValue("TextFillColorSecondaryBrush", out var secBrush) && secBrush is SolidColorBrush sb)
+            if (IsShowAllOnly)
             {
-                return sb;
+                return ThemeService.ActiveTheme == ElementTheme.Light
+                    ? LightDimmedTextBrush
+                    : DarkDimmedTextBrush;
             }
 
             return ThemeService.ActiveTheme == ElementTheme.Light
-                ? LightDimmedTextBrush
-                : DarkDimmedTextBrush;
+                ? LightNormalTextBrush
+                : DarkNormalTextBrush;
         }
     }
 

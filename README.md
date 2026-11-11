@@ -5,7 +5,7 @@
 ---
 
 ## 📌 Versioning
-- **Current Version**: `0.0.7`
+- **Current Version**: `0.0.8`
 - **Single Source of Truth**: Defined strictly in `AppConstants.cs` (`AppConstants.AppVersion`). All components, UI titles, export headers, and metadata reference this single constant.
 
 ---
@@ -163,3 +163,8 @@ Replaces the old Lists tab with an intuitive "shopping cart" paradigm:
   - [x] WinUI 3 ToggleButton Fix: Aligned `ToolbarToggleButtonStyle` with WinUI 3's `CommonStates` model so `Unlock` and `Word Wrap` icons cleanly toggle on and off.
   - [x] Preview Vertical Scrollbar: Enabled automatic vertical scrolling (`VerticalScrollBarVisibility="Auto"`) in the text editor whenever content overflows the viewport height.
   - [x] Floating `<TOP>` Smooth Scroll Button: Added dynamic floating button in the editor bottom-right corner that appears when scrolling down (>80px) and smoothly scrolls back to the beginning on click.
+- [x] **Phase 11: Version 0.0.8 - Dark Mode List Text Contrast, Single Instance & Preview Font Size**
+  - [x] Version bump to `0.0.8` across `AppConstants.cs`, `DirSnap2.csproj`, and `app.manifest`
+  - [x] File & Folder List Contrast Fix: Fixed `DetailsForegroundBrush` in `FSItem.cs` so `Size` and `Modified` date text are rendered in clear white (`DarkNormalTextBrush`) under dark mode instead of falling back to a dark/black brush.
+  - [x] Single Instance Application: Implemented named system Mutex (`Program.cs`) with `DISABLE_XAML_GENERATED_MAIN`. When launched while already running, DirSnap 2 activates and restores the existing window (`ShowWindow`/`SetForegroundWindow`) and the secondary instance exits immediately without opening a duplicate window.
+  - [x] Preview Window Font Size Setting: Added configurable `EditorFontSize` in `AppConfig` and Settings dialog (Appearance panel). Users can adjust the font size specifically for the text editor / markdown preview panel via spin box, direct input, or quick presets (`11`, `12`, `13 (Def)`, `14`, `16`, `18 pt`) with real-time live preview and immediate workspace sync without affecting the rest of the application.
