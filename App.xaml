@@ -45,19 +45,20 @@
 
                 <!-- Light Theme Dictionary -->
                 <ResourceDictionary x:Key="Light">
-                    <SolidColorBrush x:Key="AppBackgroundBrush" Color="#F3F3F3" />
-                    <SolidColorBrush x:Key="AppSurfaceBrush" Color="#FFFFFF" />
-                    <SolidColorBrush x:Key="AppBorderBrush" Color="#E5E5E5" />
+                    <SolidColorBrush x:Key="ApplicationPageBackgroundThemeBrush" Color="#ECEEF1" />
+                    <SolidColorBrush x:Key="AppBackgroundBrush" Color="#ECEEF1" />
+                    <SolidColorBrush x:Key="AppSurfaceBrush" Color="#F6F7F9" />
+                    <SolidColorBrush x:Key="AppBorderBrush" Color="#D8DCE2" />
                     <SolidColorBrush x:Key="AppAccentBrush" Color="#0078D4" />
                     <SolidColorBrush x:Key="AppAccentHoverBrush" Color="#106EBE" />
                     <SolidColorBrush x:Key="AppAccentSubtleBrush" Color="#260078D4" />
                     <SolidColorBrush x:Key="TabViewItemHeaderBackgroundSelected" Color="#260078D4" />
                     <SolidColorBrush x:Key="TabViewItemHeaderForegroundSelected" Color="#0078D4" />
                     <SolidColorBrush x:Key="TabViewItemStrokeSelected" Color="#0078D4" />
-                    <SolidColorBrush x:Key="TextFillColorPrimaryBrush" Color="#E4000000" />
-                    <SolidColorBrush x:Key="TextFillColorSecondaryBrush" Color="#9E000000" />
-                    <SolidColorBrush x:Key="TextFillColorTertiaryBrush" Color="#72000000" />
-                    <SolidColorBrush x:Key="TextFillColorDisabledBrush" Color="#5C000000" />
+                    <SolidColorBrush x:Key="TextFillColorPrimaryBrush" Color="#1F2328" />
+                    <SolidColorBrush x:Key="TextFillColorSecondaryBrush" Color="#59636E" />
+                    <SolidColorBrush x:Key="TextFillColorTertiaryBrush" Color="#8C959F" />
+                    <SolidColorBrush x:Key="TextFillColorDisabledBrush" Color="#8C959F" />
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
 

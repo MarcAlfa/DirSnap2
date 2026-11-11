@@ -95,7 +95,7 @@ public sealed partial class WorkspaceTabView : UserControl
 
         if (ViewModel.IsMarkdownFile && ViewModel.IsEditorLocked)
         {
-            bool isDark = ViewModel.ConfigService?.Current?.Theme != "light";
+            bool isDark = ThemeService.ActiveTheme != ElementTheme.Light;
             MarkdownHighlighter.Highlight(MarkdownRichTextBlock, ViewModel.EditorText, isDark);
             MarkdownScrollViewer.Visibility = Visibility.Visible;
             EditorTextBox.Visibility = Visibility.Collapsed;

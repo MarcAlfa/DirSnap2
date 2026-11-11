@@ -23,14 +23,21 @@ public static class MarkdownHighlighter
 {
     private static readonly FontFamily MonoFont = new("Consolas, Cascadia Code, Courier New");
 
-    private static readonly SolidColorBrush HeadingBrush = new(Color.FromArgb(255, 76, 201, 240)); // #4CC9F0
-    private static readonly SolidColorBrush BoldBrush = new(Color.FromArgb(255, 255, 209, 102));   // #FFD166
-    private static readonly SolidColorBrush CodeBrush = new(Color.FromArgb(255, 144, 190, 109));   // #90BE6D
-    private static readonly SolidColorBrush ListBrush = new(Color.FromArgb(255, 244, 162, 97));    // #F4A261
-    private static readonly SolidColorBrush LinkBrush = new(Color.FromArgb(255, 122, 162, 247));   // #7AA2F7
-
+    // Dark Theme Brushes (optimized for dark background #1F1F1F / #252526)
+    private static readonly SolidColorBrush DarkHeadingBrush = new(Color.FromArgb(255, 76, 201, 240)); // #4CC9F0 Sky Blue
+    private static readonly SolidColorBrush DarkBoldBrush = new(Color.FromArgb(255, 255, 209, 102));   // #FFD166 Warm Yellow
+    private static readonly SolidColorBrush DarkCodeBrush = new(Color.FromArgb(255, 144, 190, 109));   // #90BE6D Soft Green
+    private static readonly SolidColorBrush DarkListBrush = new(Color.FromArgb(255, 244, 162, 97));    // #F4A261 Orange
+    private static readonly SolidColorBrush DarkLinkBrush = new(Color.FromArgb(255, 122, 162, 247));   // #7AA2F7 Blue
     private static readonly SolidColorBrush DarkNormalTextBrush = new(Color.FromArgb(255, 235, 235, 235)); // #EBEBEB Crisp White
-    private static readonly SolidColorBrush LightNormalTextBrush = new(Color.FromArgb(255, 30, 30, 30));    // #1E1E1E Dark Gray
+
+    // Light Theme Brushes (high-contrast, rich tones on light gray background)
+    private static readonly SolidColorBrush LightHeadingBrush = new(Color.FromArgb(255, 5, 80, 174));    // #0550AE Deep Cobalt / Azure
+    private static readonly SolidColorBrush LightBoldBrush = new(Color.FromArgb(255, 161, 92, 0));       // #A15C00 Rich Dark Amber
+    private static readonly SolidColorBrush LightCodeBrush = new(Color.FromArgb(255, 22, 101, 52));     // #166534 Deep Forest Green
+    private static readonly SolidColorBrush LightListBrush = new(Color.FromArgb(255, 194, 65, 12));      // #C2410C Rich Terracotta / Rust
+    private static readonly SolidColorBrush LightLinkBrush = new(Color.FromArgb(255, 9, 105, 218));     // #0969DA GitHub / Hyperlink Blue
+    private static readonly SolidColorBrush LightNormalTextBrush = new(Color.FromArgb(255, 31, 35, 40)); // #1F2328 Deep Charcoal / Dark Gray
 
     private static readonly Regex HeadingRegex = new(@"^#{1,6}\s", RegexOptions.Compiled);
     private static readonly Regex ListRegex = new(@"^(\s*(?:[-*+]|\d+\.)\s)(.*)$", RegexOptions.Compiled);
@@ -42,6 +49,11 @@ public static class MarkdownHighlighter
         if (string.IsNullOrEmpty(content)) return;
 
         bool inFence = false;
+        var headingBrush = isDarkTheme ? DarkHeadingBrush : LightHeadingBrush;
+        var boldBrush = isDarkTheme ? DarkBoldBrush : LightBoldBrush;
+        var codeBrush = isDarkTheme ? DarkCodeBrush : LightCodeBrush;
+        var listBrush = isDarkTheme ? DarkListBrush : LightListBrush;
+        var linkBrush = isDarkTheme ? DarkLinkBrush : LightLinkBrush;
         var defaultBrush = isDarkTheme ? DarkNormalTextBrush : LightNormalTextBrush;
 
         var lines = content.Split('\n');
@@ -60,7 +72,7 @@ public static class MarkdownHighlighter
                 paragraph.Inlines.Add(new Run
                 {
                     Text = line,
-                    Foreground = CodeBrush,
+                    Foreground = codeBrush,
                     FontFamily = MonoFont
                 });
                 rtb.Blocks.Add(paragraph);
@@ -73,7 +85,7 @@ public static class MarkdownHighlighter
                 paragraph.Inlines.Add(new Run
                 {
                     Text = line,
-                    Foreground = CodeBrush,
+                    Foreground = codeBrush,
                     FontFamily = MonoFont
                 });
                 rtb.Blocks.Add(paragraph);
@@ -86,7 +98,7 @@ public static class MarkdownHighlighter
                 paragraph.Inlines.Add(new Run
                 {
                     Text = line,
-                    Foreground = HeadingBrush,
+                    Foreground = headingBrush,
                     FontWeight = FontWeights.Bold,
                     FontFamily = MonoFont
                 });
@@ -102,7 +114,7 @@ public static class MarkdownHighlighter
                 paragraph.Inlines.Add(new Run
                 {
                     Text = listMatch.Groups[1].Value,
-                    Foreground = ListBrush,
+                    Foreground = listBrush,
                     FontWeight = FontWeights.SemiBold,
                     FontFamily = MonoFont
                 });
@@ -110,13 +122,19 @@ public static class MarkdownHighlighter
             }
 
             // Parse inline formatting
-            ParseInlines(paragraph, remainder, defaultBrush);
+            ParseInlines(paragraph, remainder, defaultBrush, boldBrush, codeBrush, linkBrush);
 
             rtb.Blocks.Add(paragraph);
         }
     }
 
-    private static void ParseInlines(Paragraph paragraph, string text, Brush defaultBrush)
+    private static void ParseInlines(
+        Paragraph paragraph,
+        string text,
+        Brush defaultBrush,
+        Brush boldBrush,
+        Brush codeBrush,
+        Brush linkBrush)
     {
         if (string.IsNullOrEmpty(text))
         {
@@ -134,7 +152,7 @@ public static class MarkdownHighlighter
                 paragraph.Inlines.Add(new Run
                 {
                     Text = part,
-                    Foreground = BoldBrush,
+                    Foreground = boldBrush,
                     FontWeight = FontWeights.Bold,
                     FontFamily = MonoFont
                 });
@@ -144,7 +162,7 @@ public static class MarkdownHighlighter
                 paragraph.Inlines.Add(new Run
                 {
                     Text = part,
-                    Foreground = CodeBrush,
+                    Foreground = codeBrush,
                     FontFamily = MonoFont
                 });
             }
@@ -153,7 +171,7 @@ public static class MarkdownHighlighter
                 paragraph.Inlines.Add(new Run
                 {
                     Text = part,
-                    Foreground = LinkBrush,
+                    Foreground = linkBrush,
                     TextDecorations = TextDecorations.Underline,
                     FontFamily = MonoFont
                 });
