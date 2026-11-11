@@ -33,6 +33,32 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _isSnapListDetached;
 
+    public bool IsCurrentPathFavorite
+    {
+        get
+        {
+            var path = ActiveTab?.CurrentPath;
+            if (string.IsNullOrWhiteSpace(path))
+                path = CurrentAddressBarPath;
+            if (string.IsNullOrWhiteSpace(path))
+                return false;
+            return _configService.IsFavorite(path);
+        }
+    }
+
+    public string FavoriteStarGlyph => IsCurrentPathFavorite ? "\uE735" : "\uE734";
+
+    public string FavoriteButtonToolTip => IsCurrentPathFavorite
+        ? "Remove current folder from Favorites"
+        : "Add current folder to Favorites";
+
+    public void NotifyFavoriteProperties()
+    {
+        OnPropertyChanged(nameof(IsCurrentPathFavorite));
+        OnPropertyChanged(nameof(FavoriteStarGlyph));
+        OnPropertyChanged(nameof(FavoriteButtonToolTip));
+    }
+
     partial void OnActiveTabChanged(WorkspaceTabViewModel? oldValue, WorkspaceTabViewModel? newValue)
     {
         if (oldValue != null)
@@ -49,6 +75,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             t.IsActiveTab = (t == newValue);
         }
+        NotifyFavoriteProperties();
         SaveWorkspace();
     }
 
@@ -57,6 +84,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (e.PropertyName == nameof(WorkspaceTabViewModel.CurrentPath) && ActiveTab != null)
         {
             CurrentAddressBarPath = ActiveTab.CurrentPath;
+            NotifyFavoriteProperties();
             SaveWorkspace();
         }
         else if (e.PropertyName == nameof(WorkspaceTabViewModel.CurrentEditingFilePath))
@@ -74,6 +102,7 @@ public sealed partial class MainViewModel : ObservableObject
             if (Directory.Exists(target))
             {
                 ActiveTab.NavigateTo(target);
+                NotifyFavoriteProperties();
                 SaveWorkspace();
             }
         }
@@ -120,6 +149,8 @@ public sealed partial class MainViewModel : ObservableObject
         {
             Recents.Add(r);
         }
+
+        NotifyFavoriteProperties();
     }
 
     private void RestoreWorkspaceTabs()
@@ -225,7 +256,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (string.IsNullOrWhiteSpace(path)) return;
 
-        if (Favorites.Contains(path))
+        if (_configService.IsFavorite(path))
         {
             _configService.RemoveFavorite(path);
         }

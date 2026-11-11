@@ -16,6 +16,7 @@ public interface IConfigService
     void RemoveRecent(string path);
     void AddFavorite(string path);
     void RemoveFavorite(string path);
+    bool IsFavorite(string path);
 }
 
 public sealed class ConfigService : IConfigService
@@ -137,14 +138,35 @@ public sealed class ConfigService : IConfigService
         }
     }
 
+    public static string NormalizePath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return string.Empty;
+
+        var trimmed = path.Trim();
+        if (trimmed.Length == 2 && char.IsLetter(trimmed[0]) && trimmed[1] == ':')
+        {
+            trimmed += "\\";
+        }
+
+        try
+        {
+            var full = Path.GetFullPath(trimmed);
+            return full.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        }
+        catch
+        {
+            return trimmed.TrimEnd('\\', '/');
+        }
+    }
+
     public void AddRecent(string path)
     {
         if (string.IsNullOrWhiteSpace(path)) return;
 
         lock (_lock)
         {
-            var normalized = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            Current.Recents.RemoveAll(r => string.Equals(r.TrimEnd('\\', '/'), normalized, StringComparison.OrdinalIgnoreCase));
+            var norm = NormalizePath(path);
+            Current.Recents.RemoveAll(r => string.Equals(NormalizePath(r), norm, StringComparison.OrdinalIgnoreCase));
             Current.Recents.Insert(0, path);
 
             if (Current.Recents.Count > 20)
@@ -162,8 +184,19 @@ public sealed class ConfigService : IConfigService
 
         lock (_lock)
         {
-            var normalized = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            Current.Recents.RemoveAll(r => string.Equals(r.TrimEnd('\\', '/'), normalized, StringComparison.OrdinalIgnoreCase));
+            var norm = NormalizePath(path);
+            Current.Recents.RemoveAll(r => string.Equals(NormalizePath(r), norm, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    public bool IsFavorite(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return false;
+
+        lock (_lock)
+        {
+            var norm = NormalizePath(path);
+            return Current.Favorites.Any(f => string.Equals(NormalizePath(f), norm, StringComparison.OrdinalIgnoreCase));
         }
     }
 
@@ -173,10 +206,14 @@ public sealed class ConfigService : IConfigService
 
         lock (_lock)
         {
-            var normalized = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            if (!Current.Favorites.Any(f => string.Equals(f.TrimEnd('\\', '/'), normalized, StringComparison.OrdinalIgnoreCase)))
+            if (!IsFavorite(path))
             {
-                Current.Favorites.Add(path);
+                var toAdd = path.Trim();
+                if (toAdd.Length == 2 && char.IsLetter(toAdd[0]) && toAdd[1] == ':')
+                {
+                    toAdd += "\\";
+                }
+                Current.Favorites.Add(toAdd);
             }
         }
     }
@@ -187,8 +224,8 @@ public sealed class ConfigService : IConfigService
 
         lock (_lock)
         {
-            var normalized = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            Current.Favorites.RemoveAll(f => string.Equals(f.TrimEnd('\\', '/'), normalized, StringComparison.OrdinalIgnoreCase));
+            var norm = NormalizePath(path);
+            Current.Favorites.RemoveAll(f => string.Equals(NormalizePath(f), norm, StringComparison.OrdinalIgnoreCase));
         }
     }
 }

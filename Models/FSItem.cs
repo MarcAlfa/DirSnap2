@@ -3,6 +3,7 @@ using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 using Windows.UI;
+using DirSnap2.Services;
 
 namespace DirSnap2.Models;
 
@@ -20,16 +21,44 @@ public sealed class FSItem
     public DateTime ModifiedTime { get; set; }
     public bool IsEvenRow { get; set; }
     public bool IsCurrentFolder { get; set; }
+    public bool IsShowAllOnly { get; set; }
 
     public SolidColorBrush? TreeItemHighlightBrush =>
         IsCurrentFolder && Application.Current.Resources.TryGetValue("AppAccentSubtleBrush", out var brush)
             ? brush as SolidColorBrush
             : null;
 
-    public SolidColorBrush? TreeItemForegroundBrush =>
-        IsCurrentFolder && Application.Current.Resources.TryGetValue("AppAccentBrush", out var brush)
-            ? brush as SolidColorBrush
-            : null;
+    public SolidColorBrush TreeItemRowBackgroundBrush =>
+        TreeItemHighlightBrush ?? TransparentBrush;
+
+    private static readonly SolidColorBrush DarkNormalTextBrush = new(Colors.White);
+    private static readonly SolidColorBrush LightNormalTextBrush = new(Color.FromArgb(228, 0, 0, 0));
+    private static readonly SolidColorBrush DarkDimmedTextBrush = new(Color.FromArgb(255, 142, 149, 160)); // #8E95A0 (soft grigetto dark)
+    private static readonly SolidColorBrush LightDimmedTextBrush = new(Color.FromArgb(255, 108, 114, 126)); // #6C727E (soft grigetto light)
+
+    public SolidColorBrush ItemForegroundBrush
+    {
+        get
+        {
+            if (IsCurrentFolder && Application.Current.Resources.TryGetValue("AppAccentBrush", out var brush) && brush is SolidColorBrush acb)
+            {
+                return acb;
+            }
+
+            if (IsShowAllOnly)
+            {
+                return ThemeService.ActiveTheme == ElementTheme.Light
+                    ? LightDimmedTextBrush
+                    : DarkDimmedTextBrush;
+            }
+
+            return ThemeService.ActiveTheme == ElementTheme.Light
+                ? LightNormalTextBrush
+                : DarkNormalTextBrush;
+        }
+    }
+
+    public SolidColorBrush TreeItemForegroundBrush => ItemForegroundBrush;
 
     public Windows.UI.Text.FontWeight TreeItemFontWeight =>
         IsCurrentFolder ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal;
@@ -43,7 +72,7 @@ public sealed class FSItem
         get
         {
             if (!IsEvenRow) return TransparentBrush;
-            return Application.Current.RequestedTheme == ApplicationTheme.Light
+            return ThemeService.ActiveTheme == ElementTheme.Light
                 ? LightZebraBrush
                 : DarkZebraBrush;
         }
@@ -85,6 +114,10 @@ public sealed class FSItem
                 return $"#{acb.Color.R:X2}{acb.Color.G:X2}{acb.Color.B:X2}";
 
             if (Name == "..") return "#60A5FA"; // Soft blue
+
+            if (IsShowAllOnly)
+                return ThemeService.ActiveTheme == ElementTheme.Light ? "#6C727E" : "#8E95A0";
+
             if (IsDirectory) return "#F59E0B";  // Warm folder yellow / amber
 
             return Extension switch

@@ -143,6 +143,10 @@ public sealed class SettingsDialog : ContentDialog
             _configService.Current.Theme = "dark";
             _configService.Save();
             UpdateThemeVisuals(true);
+            if (_parentWindow is MainWindow mw)
+            {
+                foreach (var tab in mw.ViewModel.Tabs) tab.Refresh();
+            }
         };
 
         _lightRadio.Checked += (_, _) =>
@@ -152,6 +156,10 @@ public sealed class SettingsDialog : ContentDialog
             _configService.Current.Theme = "light";
             _configService.Save();
             UpdateThemeVisuals(false);
+            if (_parentWindow is MainWindow mw)
+            {
+                foreach (var tab in mw.ViewModel.Tabs) tab.Refresh();
+            }
         };
 
         themeRow.Children.Add(_darkRadio);

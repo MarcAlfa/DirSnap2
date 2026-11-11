@@ -122,11 +122,13 @@ public sealed class FileSystemService : IFileSystemService
 
                     if (entry is DirectoryInfo di)
                     {
+                        bool isShowAllOnly = isHidden || isSystem;
                         dirs.Add(new FSItem
                         {
                             Name = di.Name,
                             Path = di.FullName,
                             IsDirectory = true,
+                            IsShowAllOnly = isShowAllOnly,
                             Size = 0,
                             ModifiedTime = di.LastWriteTime
                         });
@@ -134,17 +136,20 @@ public sealed class FileSystemService : IFileSystemService
                     else if (entry is FileInfo fi)
                     {
                         var ext = fi.Extension.ToLowerInvariant();
-                        if (!showAll && allowedExtSet != null && !allowedExtSet.Contains(ext))
+                        bool isAllowed = allowedExtSet == null || allowedExtSet.Contains(ext);
+                        if (!showAll && !isAllowed)
                         {
                             // In normal mode, if allowedExtensions is specified, skip others
                             continue;
                         }
 
+                        bool isShowAllOnly = isHidden || isSystem || (allowedExtSet != null && !allowedExtSet.Contains(ext));
                         files.Add(new FSItem
                         {
                             Name = fi.Name,
                             Path = fi.FullName,
                             IsDirectory = false,
+                            IsShowAllOnly = isShowAllOnly,
                             Size = fi.Length,
                             ModifiedTime = fi.LastWriteTime
                         });
@@ -204,11 +209,13 @@ public sealed class FileSystemService : IFileSystemService
 
                     if (entry is DirectoryInfo di)
                     {
+                        bool isShowAllOnly = isHidden || isSystem;
                         dirs.Add(new TreeNodeItem
                         {
                             Name = di.Name,
                             Path = di.FullName,
                             IsDirectory = true,
+                            IsShowAllOnly = isShowAllOnly,
                             Size = 0,
                             ModifiedTime = di.LastWriteTime,
                             HasUnrealizedChildren = true
@@ -217,16 +224,19 @@ public sealed class FileSystemService : IFileSystemService
                     else if (entry is FileInfo fi)
                     {
                         var ext = fi.Extension.ToLowerInvariant();
-                        if (!showAll && allowedExtSet != null && !allowedExtSet.Contains(ext))
+                        bool isAllowed = allowedExtSet == null || allowedExtSet.Contains(ext);
+                        if (!showAll && !isAllowed)
                         {
                             continue;
                         }
 
+                        bool isShowAllOnly = isHidden || isSystem || (allowedExtSet != null && !allowedExtSet.Contains(ext));
                         files.Add(new TreeNodeItem
                         {
                             Name = fi.Name,
                             Path = fi.FullName,
                             IsDirectory = false,
+                            IsShowAllOnly = isShowAllOnly,
                             Size = fi.Length,
                             ModifiedTime = fi.LastWriteTime,
                             HasUnrealizedChildren = false

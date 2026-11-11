@@ -123,11 +123,14 @@
                                       Expanding="HierarchicalTreeView_Expanding"
                                       ItemInvoked="HierarchicalTreeView_ItemInvoked"
                                       SelectionChanged="HierarchicalTreeView_SelectionChanged"
+                                      DoubleTapped="HierarchicalTreeView_DoubleTapped"
+                                      KeyDown="HierarchicalTreeView_KeyDown"
                                       Margin="0,6,0,0">
                                 <TreeView.ItemTemplate>
                                     <DataTemplate>
                                         <Grid ColumnSpacing="8" Height="28"
-                                              Background="{Binding Content.TreeItemHighlightBrush}"
+                                              Background="{Binding Content.TreeItemRowBackgroundBrush}"
+                                              DoubleTapped="TreeItem_DoubleTapped"
                                               CornerRadius="4" Padding="6,0">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
@@ -285,6 +288,7 @@
                                               Foreground="{Binding GlyphBrush}" />
                                     <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" 
                                                FontSize="11.5"
+                                               Foreground="{Binding ItemForegroundBrush}"
                                                FontFamily="Consolas, Cascadia Code, Courier New"
                                                VerticalAlignment="Center" />
                                 </StackPanel>
@@ -401,7 +405,7 @@
 
                         <!-- Read-only lock indicator -->
                         <Border Background="{ThemeResource AppBackgroundBrush}" BorderBrush="{ThemeResource AppBorderBrush}" BorderThickness="1" CornerRadius="4" Padding="6,2"
-                                Visibility="{Binding IsEditorLocked, Converter={StaticResource BoolToVisibilityConverter}}">
+                                Visibility="{Binding IsReadOnlyBadgeVisible, Converter={StaticResource BoolToVisibilityConverter}}">
                             <StackPanel Orientation="Horizontal" Spacing="4">
                                 <FontIcon Glyph="&#xE72E;" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <TextBlock Text="Read-Only" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -427,7 +431,7 @@
 
                         <!-- Format JSON Button -->
                         <Button Command="{Binding FormatJsonCommand}"
-                                Visibility="{Binding IsJsonFile, Converter={StaticResource BoolToVisibilityConverter}}"
+                                Visibility="{Binding CanFormatJson, Converter={StaticResource BoolToVisibilityConverter}}"
                                 ToolTipService.ToolTip="Format &amp; Beautify JSON"
                                 Padding="8,4" FontSize="11">
                             <StackPanel Orientation="Horizontal" Spacing="4">
@@ -436,8 +440,9 @@
                             </StackPanel>
                         </Button>
 
-                        <!-- Word Wrap Toggle (Neutral, not colored) -->
+                        <!-- Word Wrap Toggle (Only visible for text preview/edit) -->
                         <ToggleButton IsChecked="{Binding EditorWrap, Mode=TwoWay}"
+                                      Visibility="{Binding IsPreviewUnlocked, Converter={StaticResource BoolToVisibilityConverter}}"
                                       ToolTipService.ToolTip="Toggle Word Wrap"
                                       Padding="6,4" FontSize="11"
                                       Background="Transparent" BorderThickness="1">

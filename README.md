@@ -5,7 +5,7 @@
 ---
 
 ## 📌 Versioning
-- **Current Version**: `0.0.2`
+- **Current Version**: `0.0.4`
 - **Single Source of Truth**: Defined strictly in `AppConstants.cs` (`AppConstants.AppVersion`). All components, UI titles, export headers, and metadata reference this single constant.
 
 ---
@@ -139,3 +139,16 @@ Replaces the old Lists tab with an intuitive "shopping cart" paradigm:
   - [x] Accent color palette with Blue default, Green, Purple, Teal, Orange
   - [x] Keyboard shortcuts (`Ins`, `F5`, `Ctrl+S`, `Enter`, `Del`, `Alt+Up/Left/Right`)
   - [x] Windows context menu actions (Open in Explorer, Open in Terminal, Copy Full/WSL Path)
+- [x] **Phase 9: Version 0.0.4 - Favorites Star, Tree Navigation & Show-All Dimmed Styling**
+  - [x] Version bump to `0.0.4` across `AppConstants.cs`, `DirSnap2.csproj`, and `app.manifest`
+  - [x] Dynamic Favorite Star Icon: Filled star (`\uE735`) when the active folder is among favorites, outline star (`\uE734`) when not
+  - [x] Immediate state update when navigating via the address bar `[ Go ]` button or pressing Enter
+  - [x] Bidirectional updates across tab switching, inline navigation (table, tree, drives, places), and favorite toggle
+  - [x] Robust path normalization in `ConfigService` (`NormalizePath`) handling trailing slashes, drive roots (`C:\` vs `C:`), and case insensitivity
+  - [x] Dynamic tooltip on favorite button ("Add current folder to Favorites" / "Remove current folder from Favorites")
+  - [x] Thread-safe file logging system (`AppLogger`) writing to `logs/dirsnap2.log` and `crash.log` with global unhandled exception tracking
+  - [x] Hierarchical Tree auto-expansion down to the active nested folder (`SyncTreeToCurrentPath`) with accent highlighting and automatic viewport scrolling (`StartBringIntoView`)
+  - [x] "Show All" Dimmed Items Styling: Files and folders visible only when "Show all" is checked (non-editor extensions and hidden/system items) are automatically styled in soft gray ("grigetto", `#8E95A0` in Dark theme, `#6C727E` in Light theme) for both text and icons, keeping primary editor files bright and prominent.
+  - [x] Editor Dirty & Save Button Visibility Fix: Fixed bug where the "Save" button and asterisk `*` prematurely appeared upon selecting or previewing locked/unmodified files due to internal TextBox data binding changes triggering `TextChanged`. Added `OriginalText` diff tracking, `IsLoadingFile` guard, and strict `IsEditorLocked` checks so the Save button strictly only appears when actual user edits diverge from saved content.
+  - [x] Pure Folder Tree Navigation & Auto-Close: Filtered out files from the "Folder Tree" flyout (`SyncTreeToCurrentPath` and `HierarchicalTreeView_Expanding`), showing exclusively directories for quick and distraction-free folder jumping. Double-clicking any folder or pressing `Enter` now navigates directly to the target folder and automatically closes the dropdown flyout.
+  - [x] Contextual Toolbar Controls Visibility: Word Wrap Toggle, Format JSON, and the Read-Only badge are now strictly displayed only when an active text file is being previewed or edited (`IsPreviewUnlocked`). They automatically hide when non-text files (images, audio .wav, videos, binaries, oversized files) or no files are selected.

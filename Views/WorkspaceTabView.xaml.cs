@@ -111,9 +111,17 @@ public sealed partial class WorkspaceTabView : UserControl
 
     private void CurrentFolderTreeButton_Click(object sender, RoutedEventArgs e)
     {
-        if (ViewModel != null)
+        try
         {
-            SyncTreeToCurrentPath(ViewModel.CurrentPath);
+            AppLogger.Info("[CurrentFolderTreeButton] Clicked");
+            if (ViewModel != null)
+            {
+                SyncTreeToCurrentPath(ViewModel.CurrentPath);
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error("[CurrentFolderTreeButton] Click error", ex);
         }
     }
 
@@ -124,32 +132,50 @@ public sealed partial class WorkspaceTabView : UserControl
 
     private void FolderTreeFlyout_Opened(object sender, object e)
     {
-        void ScrollToTarget()
+        AppLogger.Info("[FolderTreeFlyout] Opened");
+        try
         {
-            if (_currentTargetTreeNode is { } targetNode)
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, async () =>
             {
-                var curr = targetNode.Parent;
-                while (curr != null)
+                try
                 {
-                    curr.IsExpanded = true;
-                    HierarchicalTreeView.Expand(curr);
-                    curr = curr.Parent;
+                    if (_currentTargetTreeNode is { } targetNode)
+                    {
+                        // Ensure all ancestors up to root are expanded
+                        var curr = targetNode;
+                        while (curr != null)
+                        {
+                            curr.IsExpanded = true;
+                            curr = curr.Parent;
+                        }
+
+                        // Allow layout pass to materialize containers (retry up to 6 times)
+                        for (int attempt = 0; attempt < 6; attempt++)
+                        {
+                            if (HierarchicalTreeView.ContainerFromNode(targetNode) is TreeViewItem tvi)
+                            {
+                                tvi.StartBringIntoView(new BringIntoViewOptions
+                                {
+                                    AnimationDesired = false,
+                                    VerticalAlignmentRatio = 0.15
+                                });
+                                AppLogger.Info($"[FolderTreeFlyout] Brought target node into view at attempt {attempt + 1}");
+                                break;
+                            }
+                            await System.Threading.Tasks.Task.Delay(35);
+                        }
+                    }
                 }
-
-                targetNode.IsExpanded = true;
-                HierarchicalTreeView.Expand(targetNode);
-                HierarchicalTreeView.SelectedNode = targetNode;
-
-                if (HierarchicalTreeView.ContainerFromNode(targetNode) is TreeViewItem tvi)
+                catch (Exception ex)
                 {
-                    tvi.StartBringIntoView(new BringIntoViewOptions { AnimationDesired = false });
-                    tvi.Focus(FocusState.Programmatic);
+                    AppLogger.Warn($"[FolderTreeFlyout] ScrollToTarget warning: {ex.Message}");
                 }
-            }
+            });
         }
-
-        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal, ScrollToTarget);
-        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, ScrollToTarget);
+        catch (Exception ex)
+        {
+            AppLogger.Error("[FolderTreeFlyout] Error in FolderTreeFlyout_Opened", ex);
+        }
     }
 
     // ==================== SPLITTER DRAG ====================
@@ -321,6 +347,7 @@ public sealed partial class WorkspaceTabView : UserControl
 
     public void SyncTreeToCurrentPath(string targetPath)
     {
+        AppLogger.Info($"[SyncTreeToCurrentPath] Start for path: {targetPath}");
         if (string.IsNullOrEmpty(targetPath) || !Directory.Exists(targetPath) || ViewModel == null)
             return;
 
@@ -333,7 +360,7 @@ public sealed partial class WorkspaceTabView : UserControl
             if (string.IsNullOrEmpty(rootDir))
                 rootDir = targetPath;
 
-            var allowedExt = ViewModel.ShowAll ? null : ViewModel.ConfigService.Current.EditorExtensions;
+            var allowedExt = ViewModel.ConfigService.Current.EditorExtensions;
 
             bool isRootTarget = string.Equals(rootDir.TrimEnd('\\', '/'), targetPath.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase);
 
@@ -352,7 +379,7 @@ public sealed partial class WorkspaceTabView : UserControl
                 HasUnrealizedChildren = false
             };
 
-            var nodesToExpand = new List<TreeViewNode> { rootNode };
+            var chainNodes = new List<TreeViewNode> { rootNode };
 
             // Build hierarchy segments
             var segments = BuildPathSegments(rootDir, targetPath);
@@ -378,14 +405,14 @@ public sealed partial class WorkspaceTabView : UserControl
                     {
                         Content = d,
                         HasUnrealizedChildren = !isTargetSubPath,
-                        IsExpanded = isTargetSubPath
+                        IsExpanded = false
                     };
                     currentNode.Children.Add(dNode);
 
                     if (isTargetSubPath)
                     {
                         nextNode = dNode;
-                        nodesToExpand.Add(dNode);
+                        chainNodes.Add(dNode);
                     }
                 }
 
@@ -403,7 +430,7 @@ public sealed partial class WorkspaceTabView : UserControl
             // Populate current folder (leaf)
             if (string.Equals(currentPathAccum.TrimEnd('\\', '/'), targetPath.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase))
             {
-                var (targetDirs, targetFiles, _) = ViewModel.FileSystemService.ScanDirectory(targetPath, ViewModel.ShowAll, allowedExt);
+                var (targetDirs, _, _) = ViewModel.FileSystemService.ScanDirectory(targetPath, ViewModel.ShowAll, allowedExt);
                 currentNode.Children.Clear();
                 foreach (var d in targetDirs)
                 {
@@ -413,17 +440,7 @@ public sealed partial class WorkspaceTabView : UserControl
                         HasUnrealizedChildren = true
                     });
                 }
-                foreach (var f in targetFiles)
-                {
-                    currentNode.Children.Add(new TreeViewNode
-                    {
-                        Content = f,
-                        HasUnrealizedChildren = false
-                    });
-                }
-                currentNode.IsExpanded = true;
                 currentNode.HasUnrealizedChildren = false;
-                nodesToExpand.Add(currentNode);
             }
 
             if (currentNode.Content is FSItem activeItem)
@@ -433,30 +450,34 @@ public sealed partial class WorkspaceTabView : UserControl
 
             _currentTargetTreeNode = currentNode;
 
+            // Now that all nodes in the chain have their children populated, attach to tree and expand each one
             HierarchicalTreeView.RootNodes.Add(rootNode);
-
-            // Explicitly call Expand on all nodes down the chain
-            foreach (var n in nodesToExpand)
+            foreach (var node in chainNodes)
             {
-                n.IsExpanded = true;
-                HierarchicalTreeView.Expand(n);
+                node.IsExpanded = true;
             }
 
-            HierarchicalTreeView.SelectedNode = _currentTargetTreeNode;
+            AppLogger.Info($"[SyncTreeToCurrentPath] Root node added successfully. Chain nodes count: {chainNodes.Count}");
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[SyncTreeToCurrentPath] Error: {ex.Message}");
+            AppLogger.Error("[SyncTreeToCurrentPath] Error", ex);
         }
     }
 
     private static List<string> BuildPathSegments(string rootDir, string targetPath)
     {
         var result = new List<string>();
+        if (string.IsNullOrWhiteSpace(rootDir) || string.IsNullOrWhiteSpace(targetPath))
+            return result;
+
         var normRoot = rootDir.TrimEnd('\\', '/');
         var normTarget = targetPath.TrimEnd('\\', '/');
 
         if (string.Equals(normRoot, normTarget, StringComparison.OrdinalIgnoreCase))
+            return result;
+
+        if (!normTarget.StartsWith(normRoot, StringComparison.OrdinalIgnoreCase) || normTarget.Length <= normRoot.Length)
             return result;
 
         string relative = normTarget.Substring(normRoot.Length).TrimStart('\\', '/');
@@ -479,50 +500,145 @@ public sealed partial class WorkspaceTabView : UserControl
         {
             try
             {
-                var allowedExt = ViewModel.ShowAll ? null : ViewModel.ConfigService.Current.EditorExtensions;
-                var (dirs, files, _) = ViewModel.FileSystemService.ScanDirectory(item.Path, ViewModel.ShowAll, allowedExt);
+                AppLogger.Info($"[HierarchicalTreeView_Expanding] Expanding node: {item.Path}");
+                var allowedExt = ViewModel.ConfigService.Current.EditorExtensions;
+                var (dirs, _, _) = ViewModel.FileSystemService.ScanDirectory(item.Path, ViewModel.ShowAll, allowedExt);
                 node.Children.Clear();
                 foreach (var d in dirs)
                 {
                     node.Children.Add(new TreeViewNode { Content = d, HasUnrealizedChildren = true });
                 }
-                foreach (var f in files)
-                {
-                    node.Children.Add(new TreeViewNode { Content = f, HasUnrealizedChildren = false });
-                }
                 node.HasUnrealizedChildren = false;
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[HierarchicalTreeView_Expanding] Error: {ex.Message}");
+                AppLogger.Error($"[HierarchicalTreeView_Expanding] Error for {item.Path}", ex);
             }
         }
     }
 
     private void HierarchicalTreeView_ItemInvoked(TreeView sender, TreeViewItemInvokedEventArgs args)
     {
-        var item = (args.InvokedItem as TreeViewNode)?.Content as FSItem ?? args.InvokedItem as FSItem;
-        if (item == null || ViewModel == null) return;
+        try
+        {
+            var item = (args.InvokedItem as TreeViewNode)?.Content as FSItem ?? args.InvokedItem as FSItem;
+            if (item == null || ViewModel == null) return;
 
-        if (item.IsDirectory)
-        {
-            ViewModel.NavigateToInternal(item.Path, recordHistory: true);
+            AppLogger.Info($"[HierarchicalTreeView_ItemInvoked] Invoked: {item.Path} (IsDir={item.IsDirectory})");
+            if (item.IsDirectory)
+            {
+                ViewModel.NavigateToInternal(item.Path, recordHistory: true);
+            }
+            else
+            {
+                ViewModel.SelectFile(item.Path);
+                FolderTreeFlyout.Hide();
+            }
         }
-        else
+        catch (Exception ex)
         {
-            ViewModel.SelectFile(item.Path);
-            FolderTreeFlyout.Hide();
+            AppLogger.Error("[HierarchicalTreeView_ItemInvoked] Error", ex);
+        }
+    }
+
+    private void HierarchicalTreeView_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        try
+        {
+            var item = (HierarchicalTreeView.SelectedItem as TreeViewNode)?.Content as FSItem ?? HierarchicalTreeView.SelectedItem as FSItem;
+            if (item is { IsDirectory: true } && ViewModel != null)
+            {
+                AppLogger.Info($"[HierarchicalTreeView_DoubleTapped] DoubleTapped: {item.Path}");
+                ViewModel.NavigateToInternal(item.Path, recordHistory: true);
+                FolderTreeFlyout.Hide();
+                e.Handled = true;
+                return;
+            }
+
+            if (e.OriginalSource is FrameworkElement fe)
+            {
+                var targetItem = (fe.DataContext as TreeViewNode)?.Content as FSItem ?? fe.DataContext as FSItem;
+                if (targetItem is { IsDirectory: true } && ViewModel != null)
+                {
+                    AppLogger.Info($"[HierarchicalTreeView_DoubleTapped] OriginalSource DoubleTapped: {targetItem.Path}");
+                    ViewModel.NavigateToInternal(targetItem.Path, recordHistory: true);
+                    FolderTreeFlyout.Hide();
+                    e.Handled = true;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error("[HierarchicalTreeView_DoubleTapped] Error", ex);
+        }
+    }
+
+    private void TreeItem_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        try
+        {
+            if (sender is FrameworkElement fe)
+            {
+                var item = (fe.DataContext as TreeViewNode)?.Content as FSItem ?? fe.DataContext as FSItem;
+                if (item is { IsDirectory: true } && ViewModel != null)
+                {
+                    AppLogger.Info($"[TreeItem_DoubleTapped] DoubleTapped: {item.Path}");
+                    ViewModel.NavigateToInternal(item.Path, recordHistory: true);
+                    FolderTreeFlyout.Hide();
+                    e.Handled = true;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error("[TreeItem_DoubleTapped] Error", ex);
+        }
+    }
+
+    private void HierarchicalTreeView_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        try
+        {
+            if (e.Key == VirtualKey.Enter)
+            {
+                var item = (HierarchicalTreeView.SelectedItem as TreeViewNode)?.Content as FSItem ?? HierarchicalTreeView.SelectedItem as FSItem;
+                if (item is { IsDirectory: true } && ViewModel != null)
+                {
+                    AppLogger.Info($"[HierarchicalTreeView_KeyDown] Enter pressed on folder: {item.Path}");
+                    ViewModel.NavigateToInternal(item.Path, recordHistory: true);
+                    FolderTreeFlyout.Hide();
+                    e.Handled = true;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error("[HierarchicalTreeView_KeyDown] Error", ex);
         }
     }
 
     private void HierarchicalTreeView_SelectionChanged(TreeView sender, TreeViewSelectionChangedEventArgs args)
     {
-        if (sender.SelectedItem is TreeViewNode { Content: FSItem item } && ViewModel != null)
+        try
         {
-            if (!item.IsDirectory)
+            if (sender.SelectedItem is TreeViewNode { Content: FSItem item } && ViewModel != null)
             {
-                ViewModel.SelectFile(item.Path);
+                if (!item.IsDirectory)
+                {
+                    ViewModel.SelectFile(item.Path);
+                }
             }
+            else if (sender.SelectedItem is FSItem directItem && ViewModel != null)
+            {
+                if (!directItem.IsDirectory)
+                {
+                    ViewModel.SelectFile(directItem.Path);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error("[HierarchicalTreeView_SelectionChanged] Error", ex);
         }
     }
 
@@ -578,9 +694,9 @@ public sealed partial class WorkspaceTabView : UserControl
 
     private void EditorTextBox_TextChanged(object sender, TextChangedEventArgs e)
     {
-        if (ViewModel != null && !ViewModel.IsEditorDirty && !string.IsNullOrEmpty(ViewModel.CurrentEditingFilePath))
+        if (ViewModel != null && !ViewModel.IsLoadingFile && !ViewModel.IsEditorLocked && !string.IsNullOrEmpty(ViewModel.CurrentEditingFilePath))
         {
-            ViewModel.IsEditorDirty = true;
+            ViewModel.IsEditorDirty = !string.Equals(EditorTextBox.Text, ViewModel.OriginalText, StringComparison.Ordinal);
         }
     }
 }

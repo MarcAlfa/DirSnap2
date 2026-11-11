@@ -65,6 +65,13 @@ public sealed class TreeNodeItem : ObservableObject
         set => SetProperty(ref _hasUnrealizedChildren, value);
     }
 
+    private bool _isShowAllOnly;
+    public bool IsShowAllOnly
+    {
+        get => _isShowAllOnly;
+        set => SetProperty(ref _isShowAllOnly, value);
+    }
+
     public ObservableCollection<TreeNodeItem> Children { get; } = new();
 
     public string Extension =>
@@ -80,6 +87,7 @@ public sealed class TreeNodeItem : ObservableObject
             Name = Name,
             Path = Path,
             IsDirectory = IsDirectory,
+            IsShowAllOnly = IsShowAllOnly,
             Size = Size,
             ModifiedTime = ModifiedTime
         };

@@ -110,9 +110,12 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
     private string _currentEditingFileSizeText = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsReadOnlyBadgeVisible))]
     private bool _hasActiveFile;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsReadOnlyBadgeVisible))]
+    [NotifyPropertyChangedFor(nameof(CanFormatJson))]
     private bool _isPreviewUnlocked;
 
     [ObservableProperty]
@@ -131,19 +134,29 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
     private string _editorText = string.Empty;
 
     [ObservableProperty]
+    private string _originalText = string.Empty;
+
+    public bool IsLoadingFile { get; private set; }
+
+    [ObservableProperty]
     private bool _isEditorDirty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsReadOnlyBadgeVisible))]
     private bool _isEditorLocked = true;
 
     [ObservableProperty]
     private bool _canUnlockToEdit;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanFormatJson))]
     private bool _isJsonFile;
 
     [ObservableProperty]
     private bool _isMarkdownFile;
+
+    public bool IsReadOnlyBadgeVisible => HasActiveFile && IsPreviewUnlocked && IsEditorLocked;
+    public bool CanFormatJson => IsJsonFile && IsPreviewUnlocked;
 
     [ObservableProperty]
     private string _editorEncodingName = "UTF-8";
@@ -308,6 +321,17 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
         }
     }
 
+    partial void OnEditorTextChanged(string value)
+    {
+        if (IsLoadingFile || IsEditorLocked || string.IsNullOrEmpty(CurrentEditingFilePath))
+        {
+            IsEditorDirty = false;
+            return;
+        }
+
+        IsEditorDirty = !string.Equals(value, OriginalText, StringComparison.Ordinal);
+    }
+
     [RelayCommand]
     public void NavigateTo(string path)
     {
@@ -387,7 +411,7 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
     {
         try
         {
-            var allowedExt = ShowAll ? null : _configService.Current.EditorExtensions;
+            var allowedExt = _configService.Current.EditorExtensions;
             var (dirs, files, error) = _fileSystemService.ScanDirectory(CurrentPath, ShowAll, allowedExt);
 
             if (error != null)
@@ -483,7 +507,7 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
     private void LoadTree()
     {
         TreeRoots.Clear();
-        var allowedExt = ShowAll ? null : _configService.Current.EditorExtensions;
+        var allowedExt = _configService.Current.EditorExtensions;
         var children = _fileSystemService.GetTreeChildren(CurrentPath, ShowAll, allowedExt);
 
         var rootNode = new TreeNodeItem
@@ -510,7 +534,7 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
         node.IsLoading = true;
         try
         {
-            var allowedExt = ShowAll ? null : _configService.Current.EditorExtensions;
+            var allowedExt = _configService.Current.EditorExtensions;
             var children = _fileSystemService.GetTreeChildren(node.Path, ShowAll, allowedExt);
             node.Children.Clear();
             foreach (var c in children)
@@ -659,7 +683,17 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
         if (isBinaryContent || isOversized)
         {
             // Binary or oversized file: never offer text preview or unlock
-            EditorText = string.Empty;
+            IsLoadingFile = true;
+            try
+            {
+                OriginalText = string.Empty;
+                EditorText = string.Empty;
+                IsEditorDirty = false;
+            }
+            finally
+            {
+                IsLoadingFile = false;
+            }
             IsPreviewUnlocked = false;
             RequiresPreviewUnlock = true;
             CanUnlockPreview = false;
@@ -687,7 +721,17 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
             try
             {
                 var result = _textFileService.ReadText(filePath);
-                EditorText = result.Content;
+                IsLoadingFile = true;
+                try
+                {
+                    OriginalText = result.Content;
+                    EditorText = result.Content;
+                    IsEditorDirty = false;
+                }
+                finally
+                {
+                    IsLoadingFile = false;
+                }
                 _loadedEncoding = result.Encoding;
                 _loadedNewline = result.Newline;
                 EditorHasBom = result.HasBom;
@@ -703,7 +747,17 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
             }
             catch (Exception ex)
             {
-                EditorText = string.Empty;
+                IsLoadingFile = true;
+                try
+                {
+                    OriginalText = string.Empty;
+                    EditorText = string.Empty;
+                    IsEditorDirty = false;
+                }
+                finally
+                {
+                    IsLoadingFile = false;
+                }
                 IsPreviewUnlocked = false;
                 RequiresPreviewUnlock = true;
                 CanUnlockPreview = false;
@@ -717,7 +771,17 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
         else
         {
             // Non-configured text extension: show unlock prompt
-            EditorText = string.Empty;
+            IsLoadingFile = true;
+            try
+            {
+                OriginalText = string.Empty;
+                EditorText = string.Empty;
+                IsEditorDirty = false;
+            }
+            finally
+            {
+                IsLoadingFile = false;
+            }
             IsPreviewUnlocked = false;
             RequiresPreviewUnlock = true;
             CanUnlockPreview = true;
@@ -732,21 +796,30 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
 
     public void ClearFileSelection()
     {
-        CurrentEditingFilePath = null;
-        CurrentEditingFileName = "No file selected";
-        CurrentEditingFileSizeText = string.Empty;
-        HasActiveFile = false;
-        IsPreviewUnlocked = false;
-        RequiresPreviewUnlock = false;
-        CanUnlockPreview = false;
-        PreviewNoticeText = string.Empty;
-        PreviewNoticeGlyph = "\uE890";
-        IsEditorLocked = true;
-        CanUnlockToEdit = false;
-        IsJsonFile = false;
-        IsMarkdownFile = false;
-        EditorText = string.Empty;
-        IsEditorDirty = false;
+        IsLoadingFile = true;
+        try
+        {
+            CurrentEditingFilePath = null;
+            CurrentEditingFileName = "No file selected";
+            CurrentEditingFileSizeText = string.Empty;
+            HasActiveFile = false;
+            IsPreviewUnlocked = false;
+            RequiresPreviewUnlock = false;
+            CanUnlockPreview = false;
+            PreviewNoticeText = string.Empty;
+            PreviewNoticeGlyph = "\uE890";
+            IsEditorLocked = true;
+            CanUnlockToEdit = false;
+            IsJsonFile = false;
+            IsMarkdownFile = false;
+            OriginalText = string.Empty;
+            EditorText = string.Empty;
+            IsEditorDirty = false;
+        }
+        finally
+        {
+            IsLoadingFile = false;
+        }
     }
 
     public void OpenFile(string filePath)
@@ -774,7 +847,17 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
         try
         {
             var result = _textFileService.ReadText(CurrentEditingFilePath);
-            EditorText = result.Content;
+            IsLoadingFile = true;
+            try
+            {
+                OriginalText = result.Content;
+                EditorText = result.Content;
+                IsEditorDirty = false;
+            }
+            finally
+            {
+                IsLoadingFile = false;
+            }
             _loadedEncoding = result.Encoding;
             _loadedNewline = result.Newline;
             EditorHasBom = result.HasBom;
@@ -828,6 +911,7 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
         try
         {
             _textFileService.WriteText(CurrentEditingFilePath, EditorText, _loadedEncoding, _loadedNewline, EditorHasBom);
+            OriginalText = EditorText;
             IsEditorDirty = false;
             StatusMessage = $"Saved '{CurrentEditingFileName}'";
         }
@@ -853,7 +937,7 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
         try
         {
             EditorText = _textFileService.FormatJson(EditorText);
-            IsEditorDirty = true;
+            IsEditorDirty = !string.Equals(EditorText, OriginalText, StringComparison.Ordinal);
             StatusMessage = "JSON formatted successfully";
         }
         catch (Exception ex)

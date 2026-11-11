@@ -76,6 +76,18 @@ public sealed partial class MainWindow : Window
         // 6. Populate Menus
         PopulateDrivesMenu();
         PopulatePlacesMenu();
+        UpdateFavoriteButtonState();
+
+        ViewModel.PropertyChanged += (s, e) =>
+        {
+            if (e.PropertyName is nameof(MainViewModel.IsCurrentPathFavorite)
+                or nameof(MainViewModel.FavoriteStarGlyph)
+                or nameof(MainViewModel.ActiveTab)
+                or nameof(MainViewModel.CurrentAddressBarPath))
+            {
+                UpdateFavoriteButtonState();
+            }
+        };
 
         // 7. Wire Closing Event
         Closed += MainWindow_Closed;
@@ -179,6 +191,7 @@ public sealed partial class MainWindow : Window
                 if (s is MenuFlyoutItem mfi && mfi.Tag is string p)
                 {
                     ViewModel.ActiveTab?.NavigateToCommand.Execute(p);
+                    UpdateFavoriteButtonState();
                 }
             };
             DrivesMenuFlyout.Items.Add(item);
@@ -199,7 +212,10 @@ public sealed partial class MainWindow : Window
             item.Click += (s, e) =>
             {
                 if (s is MenuFlyoutItem mfi && mfi.Tag is string p)
+                {
                     ViewModel.ActiveTab?.NavigateToCommand.Execute(p);
+                    UpdateFavoriteButtonState();
+                }
             };
             PlacesMenuFlyout.Items.Add(item);
         }
@@ -215,7 +231,10 @@ public sealed partial class MainWindow : Window
             item.Click += (s, e) =>
             {
                 if (s is MenuFlyoutItem mfi && mfi.Tag is string p)
+                {
                     ViewModel.ActiveTab?.NavigateToCommand.Execute(p);
+                    UpdateFavoriteButtonState();
+                }
             };
             PlacesMenuFlyout.Items.Add(item);
         }
@@ -227,6 +246,7 @@ public sealed partial class MainWindow : Window
         {
             ViewModel.NavigateAddressBarCommand.Execute(null);
             PopulatePlacesMenu();
+            UpdateFavoriteButtonState();
             e.Handled = true;
         }
     }
@@ -235,6 +255,7 @@ public sealed partial class MainWindow : Window
     {
         ViewModel.NavigateAddressBarCommand.Execute(null);
         PopulatePlacesMenu();
+        UpdateFavoriteButtonState();
     }
 
     private async void CopyAddressButton_Click(object sender, RoutedEventArgs e)
@@ -268,10 +289,27 @@ public sealed partial class MainWindow : Window
 
     private void FavoriteCurrentPath_Click(object sender, RoutedEventArgs e)
     {
-        if (ViewModel.ActiveTab != null)
+        var path = ViewModel.ActiveTab?.CurrentPath;
+        if (string.IsNullOrWhiteSpace(path))
+            path = ViewModel.CurrentAddressBarPath;
+
+        if (!string.IsNullOrWhiteSpace(path))
         {
-            ViewModel.ToggleFavoriteCommand.Execute(ViewModel.ActiveTab.CurrentPath);
+            ViewModel.ToggleFavoriteCommand.Execute(path);
             PopulatePlacesMenu();
+            UpdateFavoriteButtonState();
+        }
+    }
+
+    public void UpdateFavoriteButtonState()
+    {
+        if (FavoriteStarFontIcon != null)
+        {
+            FavoriteStarFontIcon.Glyph = ViewModel.FavoriteStarGlyph;
+        }
+        if (FavoriteCurrentPathButton != null)
+        {
+            ToolTipService.SetToolTip(FavoriteCurrentPathButton, ViewModel.FavoriteButtonToolTip);
         }
     }
 
@@ -395,6 +433,10 @@ public sealed partial class MainWindow : Window
                 XamlRoot = ((FrameworkElement)Content).XamlRoot
             };
             await dialog.ShowAsync();
+            foreach (var tab in ViewModel.Tabs)
+            {
+                tab.Refresh();
+            }
         }
         catch (Exception ex)
         {

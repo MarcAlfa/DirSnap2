@@ -1,6 +1,8 @@
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 using Microsoft.UI.Xaml;
+using DirSnap2.Services;
 
 namespace DirSnap2;
 
@@ -11,6 +13,7 @@ public partial class App : Application
 
     public App()
     {
+        AppLogger.Initialize();
         UnhandledException += App_UnhandledException;
         AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
         TaskScheduler.UnobservedTaskException += TaskScheduler_UnobservedTaskException;
@@ -20,37 +23,51 @@ public partial class App : Application
     private void App_UnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
     {
         e.Handled = true;
-        Debug.WriteLine($"[UI Exception] {e.Exception?.Message ?? e.Message}");
+        AppLogger.Fatal($"[UI UnhandledException] Message={e.Message}", e.Exception);
+        WriteCrashDump("UI UnhandledException", e.Exception ?? new Exception(e.Message));
     }
 
     private void TaskScheduler_UnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
     {
-        Debug.WriteLine($"[Task Exception] {e.Exception?.Message}");
+        AppLogger.Error("[TaskScheduler UnobservedTaskException]", e.Exception);
         e.SetObserved();
     }
 
     private void CurrentDomain_UnhandledException(object sender, System.UnhandledExceptionEventArgs e)
     {
         var ex = e.ExceptionObject as Exception ?? new Exception(e.ExceptionObject?.ToString());
-        Debug.WriteLine($"[Fatal Exception] {ex.Message}");
+        AppLogger.Fatal($"[Fatal CurrentDomain Exception] IsTerminating={e.IsTerminating}", ex);
+        WriteCrashDump("Fatal CurrentDomain Exception", ex);
         ShowFatalMessage(ex);
     }
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int MessageBoxW(IntPtr hWnd, string text, string caption, uint type);
 
-    private static void ShowFatalMessage(Exception ex)
+    private static void WriteCrashDump(string category, Exception ex)
     {
         try
         {
             var logPath = Path.Combine(AppContext.BaseDirectory, "crash.log");
-            File.WriteAllText(logPath, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss}\n{ex}\n");
+            File.AppendAllText(logPath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] [{category}]\n{ex}\n\n");
+        }
+        catch
+        {
+            // Ignore failure writing crash dump file
+        }
+    }
+
+    private static void ShowFatalMessage(Exception ex)
+    {
+        try
+        {
+            WriteCrashDump("ShowFatalMessage", ex);
 
             var detail = $"{ex.GetType().Name}: {ex.Message}\n\n{ex.StackTrace}";
             if (detail.Length > 800) detail = detail.Substring(0, 800) + "...";
 
             MessageBoxW(IntPtr.Zero,
-                $"{AppConstants.AppName} encountered an unexpected error and must close.\n\n{detail}",
+                $"{AppConstants.AppName} encountered an unexpected error and must close.\n\n{detail}\n\nA log has been saved to:\n{AppLogger.LogFilePath}",
                 $"{AppConstants.AppName} - Fatal Error", 0x10 /* MB_ICONERROR */);
         }
         catch
@@ -63,13 +80,16 @@ public partial class App : Application
     {
         try
         {
+            AppLogger.Info("App.OnLaunched starting...");
             var window = new MainWindow();
             _window = window;
             MainAppWindow = _window;
             _window.Activate();
+            AppLogger.Info("MainWindow activated successfully.");
         }
         catch (Exception ex)
         {
+            AppLogger.Fatal("App.OnLaunched fatal exception", ex);
             ShowFatalMessage(ex);
             throw;
         }

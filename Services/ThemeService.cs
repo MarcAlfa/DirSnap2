@@ -17,6 +17,8 @@ public interface IThemeService
 
 public sealed class ThemeService : IThemeService
 {
+    public static ElementTheme ActiveTheme { get; set; } = ElementTheme.Dark;
+
     public ElementTheme CurrentTheme { get; private set; } = ElementTheme.Dark;
     public string CurrentAccent { get; private set; } = "blue";
 
@@ -69,6 +71,7 @@ public sealed class ThemeService : IThemeService
     public void SetTheme(ElementTheme theme, FrameworkElement rootElement)
     {
         CurrentTheme = theme;
+        ActiveTheme = theme;
         if (rootElement != null)
         {
             rootElement.RequestedTheme = theme;

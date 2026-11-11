@@ -168,10 +168,14 @@
                 <!-- Favorites & Recents Menu + Terminal -->
                 <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="4">
                     <!-- Toggle Favorite Current Path -->
-                    <Button Click="FavoriteCurrentPath_Click"
-                            ToolTipService.ToolTip="Add/Remove current folder to Favorites"
+                    <Button x:Name="FavoriteCurrentPathButton"
+                            Click="FavoriteCurrentPath_Click"
+                            ToolTipService.ToolTip="{Binding FavoriteButtonToolTip}"
                             Padding="6,4">
-                        <FontIcon Glyph="&#xE734;" FontSize="12" Foreground="{ThemeResource SystemFillColorCautionBrush}" />
+                        <FontIcon x:Name="FavoriteStarFontIcon"
+                                  Glyph="{Binding FavoriteStarGlyph}"
+                                  FontSize="12"
+                                  Foreground="{ThemeResource SystemFillColorCautionBrush}" />
                     </Button>
 
                     <!-- Favorites & Recents Flyout -->
