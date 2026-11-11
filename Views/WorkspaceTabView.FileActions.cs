@@ -10,8 +10,8 @@ using DirSnap2.Services;
 namespace DirSnap2.Views;
 
 /// <summary>
-/// File actions of the list: Copy to clipboard (like Explorer), Rename, and the quick
-/// "new .txt / .md" buttons.
+/// File actions of the list: Copy / Cut / Paste / Duplicate (like Explorer), Rename, Delete,
+/// New folder and the quick "new .txt / .md" buttons.
 /// </summary>
 public sealed partial class WorkspaceTabView
 {
@@ -27,8 +27,17 @@ public sealed partial class WorkspaceTabView
             _ = CopyItemToClipboardAsync(item);
     }
 
-    /// <summary>Puts the file/folder on the clipboard as a real item: Ctrl+V in Explorer pastes a copy.</summary>
-    private async Task CopyItemToClipboardAsync(FSItem item)
+    private void Context_Cut_Click(object sender, RoutedEventArgs e)
+    {
+        if (GetContextItem(sender) is { } item)
+            _ = CopyItemToClipboardAsync(item, cut: true);
+    }
+
+    /// <summary>
+    /// Puts the file/folder on the clipboard as a real item: Ctrl+V in Explorer pastes a copy
+    /// (or moves it, after Cut).
+    /// </summary>
+    private async Task CopyItemToClipboardAsync(FSItem item, bool cut = false)
     {
         var vm = ViewModel;
         if (vm == null || item.Name == "..") return;
@@ -39,18 +48,251 @@ public sealed partial class WorkspaceTabView
                 ? await StorageFolder.GetFolderFromPathAsync(item.Path)
                 : await StorageFile.GetFileFromPathAsync(item.Path);
 
-            var dp = new DataPackage { RequestedOperation = DataPackageOperation.Copy };
+            var dp = new DataPackage { RequestedOperation = cut ? DataPackageOperation.Move : DataPackageOperation.Copy };
             dp.SetStorageItems(new[] { storageItem });
             Clipboard.SetContent(dp);
             Clipboard.Flush(); // stays on the clipboard after DirSnap 2 is closed
 
-            vm.StatusMessage = $"Copied '{item.Name}' to the clipboard";
+            vm.StatusMessage = cut
+                ? $"Cut '{item.Name}': paste it in another folder to move it"
+                : $"Copied '{item.Name}' to the clipboard";
         }
         catch (Exception ex)
         {
             AppLogger.Error($"[Copy] Error copying {item.Path} to clipboard", ex);
             vm.StatusMessage = $"Cannot copy '{item.Name}': {ex.Message}";
         }
+    }
+
+    // ==================== PASTE / DUPLICATE ====================
+
+    private void Context_Paste_Click(object sender, RoutedEventArgs e) => _ = PasteFromClipboardAsync();
+
+    private void Context_Duplicate_Click(object sender, RoutedEventArgs e)
+    {
+        if (GetContextItem(sender) is { } item)
+            _ = DuplicateItemAsync(item);
+    }
+
+    /// <summary>Owner window of the Windows copy/move dialogs.</summary>
+    private IntPtr GetOwnerWindowHandle()
+    {
+        try
+        {
+            if (XamlRoot?.ContentIslandEnvironment is { } env)
+                return Microsoft.UI.Win32Interop.GetWindowFromWindowId(env.AppWindowId);
+        }
+        catch { }
+        return IntPtr.Zero;
+    }
+
+    private static bool IsSameFolder(string? a, string? b)
+    {
+        if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b)) return false;
+        try
+        {
+            return string.Equals(ShellFileOperations.CleanPath(a), ShellFileOperations.CleanPath(b), StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Ctrl+V: pastes the files/folders on the clipboard (from DirSnap 2, Explorer, mail...) into the
+    /// current folder. After a Cut they are moved. Windows asks when a name already exists.
+    /// </summary>
+    private async Task PasteFromClipboardAsync()
+    {
+        var vm = ViewModel;
+        if (vm == null || !Directory.Exists(vm.CurrentPath)) return;
+        string dest = vm.CurrentPath;
+
+        List<string> sources;
+        bool move;
+        try
+        {
+            var content = Clipboard.GetContent();
+            if (!content.Contains(StandardDataFormats.StorageItems))
+            {
+                vm.StatusMessage = "Nothing to paste: the clipboard holds no files or folders";
+                return;
+            }
+            var items = await content.GetStorageItemsAsync();
+            sources = items.Select(i => i.Path).Where(p => !string.IsNullOrEmpty(p)).ToList();
+            move = content.RequestedOperation.HasFlag(DataPackageOperation.Move);
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error("[Paste] Cannot read the clipboard", ex);
+            vm.StatusMessage = $"Cannot read the clipboard: {ex.Message}";
+            return;
+        }
+
+        if (sources.Count == 0)
+        {
+            vm.StatusMessage = "Nothing to paste: the clipboard items have no path on disk";
+            return;
+        }
+
+        if (move && sources.All(s => IsSameFolder(Path.GetDirectoryName(s), dest)))
+        {
+            vm.StatusMessage = "Already in this folder";
+            return;
+        }
+
+        string? openFile = vm.HasActiveFile ? vm.CurrentEditingFilePath : null;
+        string? movedOpenSource = move ? sources.FirstOrDefault(s => IsSameOrInside(openFile, s)) : null;
+        if (movedOpenSource != null && vm.IsEditorDirty)
+        {
+            await ShowMessageAsync("Paste", $"'{vm.CurrentEditingFileName}' has unsaved changes. Save or discard them before moving it.");
+            return;
+        }
+
+        // A copy into the folder it comes from gets "name - Copy" instead of the replace question
+        bool renameOnCollision = !move && sources.Any(s => IsSameFolder(Path.GetDirectoryName(s), dest));
+        var owner = GetOwnerWindowHandle();
+        string what = sources.Count == 1 ? $"'{Path.GetFileName(sources[0])}'" : $"{sources.Count} items";
+
+        bool done;
+        try
+        {
+            vm.StatusMessage = move ? $"Moving {what}..." : $"Copying {what}...";
+            done = await Task.Run(() => move
+                ? ShellFileOperations.Move(sources, dest, owner)
+                : ShellFileOperations.Copy(sources, dest, renameOnCollision, owner));
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error($"[Paste] {(move ? "Move" : "Copy")} into {dest}", ex);
+            vm.StatusMessage = $"Paste failed: {ex.Message}";
+            if (ReferenceEquals(vm, ViewModel)) vm.RefreshCommand.Execute(null);
+            return;
+        }
+
+        if (!ReferenceEquals(vm, ViewModel)) return;
+        AppLogger.Info($"[Paste] {(move ? "Moved" : "Copied")} {sources.Count} item(s) into {dest} (completed: {done})");
+
+        if (move && done)
+        {
+            // Like Explorer: what was cut is pasted only once
+            try { Clipboard.Clear(); } catch { }
+
+            // The open file moved with them: follow it
+            if (movedOpenSource != null && openFile != null)
+            {
+                var newOpen = Path.Combine(dest, Path.GetFileName(movedOpenSource.TrimEnd('\\'))) + openFile.Substring(movedOpenSource.TrimEnd('\\').Length);
+                if (File.Exists(newOpen)) vm.SelectFile(newOpen);
+                else vm.ClearFileSelection();
+            }
+        }
+
+        vm.StatusMessage = !done ? "Paste cancelled" : move ? $"Moved {what} here" : $"Pasted {what}";
+        vm.RefreshCommand.Execute(null);
+    }
+
+    /// <summary>Copy of the file/folder next to it ("name - Copy.ext").</summary>
+    private async Task DuplicateItemAsync(FSItem item)
+    {
+        var vm = ViewModel;
+        var parent = Path.GetDirectoryName(item.Path);
+        if (vm == null || item.Name == ".." || string.IsNullOrEmpty(parent)) return;
+
+        var owner = GetOwnerWindowHandle();
+        try
+        {
+            bool done = await Task.Run(() => ShellFileOperations.Copy(new[] { item.Path }, parent, renameOnCollision: true, owner));
+            if (!ReferenceEquals(vm, ViewModel)) return;
+            vm.StatusMessage = done ? $"Duplicated '{item.Name}'" : "Duplicate cancelled";
+            AppLogger.Info($"[Duplicate] {item.Path} (completed: {done})");
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error($"[Duplicate] {item.Path}", ex);
+            vm.StatusMessage = $"Cannot duplicate '{item.Name}': {ex.Message}";
+        }
+        vm.RefreshCommand.Execute(null);
+    }
+
+    // ==================== NEW FOLDER ====================
+
+    private void NewFolderButton_Click(object sender, RoutedEventArgs e) => _ = CreateFolderAsync();
+    private void Context_NewFolder_Click(object sender, RoutedEventArgs e) => _ = CreateFolderAsync();
+
+    private async Task CreateFolderAsync()
+    {
+        var vm = ViewModel;
+        if (vm == null || XamlRoot == null || !Directory.Exists(vm.CurrentPath)) return;
+        string parent = vm.CurrentPath;
+
+        string suggested = "New folder";
+        for (int n = 2; n < 1000 && (Directory.Exists(Path.Combine(parent, suggested)) || File.Exists(Path.Combine(parent, suggested))); n++)
+            suggested = $"New folder ({n})";
+
+        var nameBox = new TextBox { Text = suggested, MinWidth = 380 };
+        var errorText = new TextBlock
+        {
+            Foreground = (Brush)Application.Current.Resources["SystemFillColorCriticalBrush"],
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 12,
+            Visibility = Visibility.Collapsed
+        };
+        var panel = new StackPanel { Spacing = 8 };
+        panel.Children.Add(nameBox);
+        panel.Children.Add(errorText);
+        nameBox.Loaded += (_, _) =>
+        {
+            nameBox.Focus(FocusState.Programmatic);
+            nameBox.SelectAll();
+        };
+
+        var dialog = new ContentDialog
+        {
+            Title = "New Folder",
+            Content = panel,
+            PrimaryButtonText = "Create",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = XamlRoot,
+            RequestedTheme = ThemeService.ActiveTheme
+        };
+
+        string? created = null;
+        dialog.PrimaryButtonClick += (_, args) =>
+        {
+            var name = nameBox.Text.Trim();
+            var error = ValidateName(name);
+            var target = error == null ? Path.Combine(parent, name) : null;
+            if (error == null && (Directory.Exists(target) || File.Exists(target)))
+                error = $"'{name}' already exists in this folder.";
+
+            if (error == null)
+            {
+                try
+                {
+                    Directory.CreateDirectory(target!);
+                    created = target;
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    AppLogger.Error($"[NewFolder] {target}", ex);
+                    error = $"Cannot create the folder: {ex.Message}";
+                }
+            }
+
+            errorText.Text = error;
+            errorText.Visibility = Visibility.Visible;
+            args.Cancel = true;
+        };
+
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary || created == null || !ReferenceEquals(vm, ViewModel))
+            return;
+
+        AppLogger.Info($"[NewFolder] Created {created}");
+        vm.StatusMessage = $"Created folder '{Path.GetFileName(created)}'";
+        vm.RefreshAndSelectFolder(created);
     }
 
     // ==================== RENAME ====================
@@ -171,12 +413,8 @@ public sealed partial class WorkspaceTabView
     private static string? ValidateNewName(string newName, string oldName, string oldPath, bool isDir, out string? target)
     {
         target = null;
-        if (string.IsNullOrWhiteSpace(newName))
-            return "The name cannot be empty.";
-        if (newName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
-            return "A name cannot contain any of these characters:  \\ / : * ? \" < > |";
-        if (newName.EndsWith('.'))
-            return "A name cannot end with a dot.";
+        if (ValidateName(newName) is { } invalid)
+            return invalid;
         if (newName == oldName)
             return "The name is the same.";
 
@@ -189,6 +427,18 @@ public sealed partial class WorkspaceTabView
         if (!caseOnly && (File.Exists(target) || Directory.Exists(target)))
             return $"'{newName}' already exists in this folder.";
 
+        return null;
+    }
+
+    /// <summary>Rules every file/folder name must follow; null when the name is fine.</summary>
+    private static string? ValidateName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return "The name cannot be empty.";
+        if (name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+            return "A name cannot contain any of these characters:  \\ / : * ? \" < > |";
+        if (name.EndsWith('.'))
+            return "A name cannot end with a dot.";
         return null;
     }
 

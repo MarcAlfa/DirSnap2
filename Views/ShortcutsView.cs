@@ -24,7 +24,9 @@ public static class ShortcutsView
             new Shortcut("F5", "Refresh the current folder"),
             new Shortcut("Ctrl + L", "Go to the address bar"),
             new Shortcut("Enter", "Open the typed path (address bar)"),
-            new Shortcut("Ctrl + F", "Go to the quick filter (file list)"),
+            new Shortcut("Ctrl + F", "Show the quick filter bar and go to it (file list)"),
+            new Shortcut("Esc", "Clear the quick filter and hide its bar (in the filter box)"),
+            new Shortcut("Ctrl + Shift + F", "Search text in the files of the current folder"),
         }),
         ("Tabs", new[]
         {
@@ -39,6 +41,8 @@ public static class ShortcutsView
             new Shortcut("Double-click", "Open folder / open file in edit mode"),
             new Shortcut("Ins", "Add the selected item to the Snap List"),
             new Shortcut("Ctrl + C", "Copy the selected file/folder (paste it in Explorer)"),
+            new Shortcut("Ctrl + X", "Cut the selected file/folder (paste moves it)"),
+            new Shortcut("Ctrl + V", "Paste files/folders (from DirSnap 2 or Explorer) into the current folder"),
             new Shortcut("F2", "Rename the selected file/folder"),
             new Shortcut("Del", "Move the selected file/folder to the Recycle Bin (asks twice)"),
         }),

@@ -113,6 +113,12 @@ public sealed class AppConfig
     [JsonPropertyName("find_match_case")]
     public bool FindMatchCase { get; set; }
 
+    [JsonPropertyName("file_search_subfolders")]
+    public bool FileSearchSubfolders { get; set; } = true;
+
+    [JsonPropertyName("file_search_match_case")]
+    public bool FileSearchMatchCase { get; set; }
+
     [JsonPropertyName("splitter_distance")]
     public double SplitterDistance { get; set; } = 450;
 

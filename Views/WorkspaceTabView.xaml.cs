@@ -68,6 +68,7 @@ public sealed partial class WorkspaceTabView : UserControl
             _currentVm.SyncSelectedFile();
             UpdateEditorViewMode();
             UpdateOutline();
+            UpdateFilterBarState();
             if (_currentVm.SelectedItem != null)
             {
                 FlatListView.ScrollIntoView(_currentVm.SelectedItem);
@@ -99,6 +100,11 @@ public sealed partial class WorkspaceTabView : UserControl
         if (e.PropertyName is nameof(WorkspaceTabViewModel.SelectedItem) or nameof(WorkspaceTabViewModel.ShowAll))
         {
             ScheduleFolderPeek();
+        }
+
+        if (e.PropertyName is nameof(WorkspaceTabViewModel.FilterQuery) or nameof(WorkspaceTabViewModel.ShowAll))
+        {
+            UpdateFilterBarState();
         }
 
         if (e.PropertyName == nameof(WorkspaceTabViewModel.EditorFontSize))
@@ -438,6 +444,8 @@ public sealed partial class WorkspaceTabView : UserControl
 
     public void FocusFilter()
     {
+        if (FilterBar.Visibility != Visibility.Visible)
+            SetFilterBarOpen(true);
         FilterTextBox.Focus(FocusState.Keyboard);
         FilterTextBox.SelectAll();
     }
@@ -451,14 +459,22 @@ public sealed partial class WorkspaceTabView : UserControl
             return;
         }
 
-        if (ViewModel?.SelectedItem is not { } item) return;
-
         var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control);
         bool isCtrl = (ctrl & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0;
 
-        if (isCtrl && e.Key == VirtualKey.C)
+        // Paste works with nothing selected too: it goes into the current folder
+        if (isCtrl && e.Key == VirtualKey.V)
         {
-            _ = CopyItemToClipboardAsync(item);
+            _ = PasteFromClipboardAsync();
+            e.Handled = true;
+            return;
+        }
+
+        if (ViewModel?.SelectedItem is not { } item) return;
+
+        if (isCtrl && (e.Key == VirtualKey.C || e.Key == VirtualKey.X))
+        {
+            _ = CopyItemToClipboardAsync(item, cut: e.Key == VirtualKey.X);
             e.Handled = true;
             return;
         }

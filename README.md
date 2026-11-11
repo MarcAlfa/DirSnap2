@@ -5,7 +5,7 @@
 ---
 
 ## 📌 Versioning
-- **Current Version**: `0.1.1`
+- **Current Version**: `0.1.2`
 - **Single Source of Truth**: Defined strictly in `AppConstants.cs` (`AppConstants.AppVersion`). All components, UI titles, export headers, and metadata reference this single constant.
 
 ---
@@ -201,3 +201,10 @@ Replaces the old Lists tab with an intuitive "shopping cart" paradigm:
   - [x] Delete (right-click or `Del`): asks twice, then moves the item to the Recycle Bin (`RecycleBinService`, `SHFileOperation` with undo). Refused on network and removable drives, where Windows would delete permanently. Blocked when it would affect a file with unsaved edits.
   - [x] `+ TXT` / `+ MD` buttons in the list header (instead of the "Files & Folders" label): create a file named with the current date/time (`2026-11-11_21-35.txt`, `_2`, `_3`... if it exists) in the current folder and open it in edit mode.
   - [x] Default sort is now *last modified first*, in the list and in the Folder Contents panel. Existing tabs are switched once (`sort_mtime_default_applied`); later header clicks are kept.
+- [x] **Phase 15: Version 0.1.2 - Cut / Paste / Duplicate, New Folder, Search in Files & Compact Search Bar**
+  - [x] Version bump to `0.1.2` across `AppConstants.cs`, `DirSnap2.csproj`, and `app.manifest`
+  - [x] Cut (`Ctrl+X`) and Paste (`Ctrl+V`, also right-click on an item or on the empty part of the list): pastes into the current folder the files/folders copied or cut in DirSnap 2, Explorer, mail... Copy and move go through the Windows shell (`ShellFileOperations`, `SHFileOperation`): Windows shows its progress window and asks when a name already exists; undo works from Explorer. A copy into the same folder gets "name - Copy"; after a move the clipboard is cleared and an open moved file is reopened from its new place.
+  - [x] Duplicate (right-click): copy next to the original ("name - Copy.ext").
+  - [x] New folder button (and right-click on the empty part of the list): asks for the name, then selects the new folder.
+  - [x] Search in Files (`Ctrl+Shift+F` or *In files*): finds a plain text in the files of the current folder (optionally its subfolders) whose extension is one of the editor extensions (`FileSearchService`). Skips `.git`, `node_modules` and similar folders, junctions, binary files and files over 5 MB; stops at 2000 lines. Results grouped by file with the line number and the match in bold; clicking one opens the file with the find bar on that match. *Subfolders* and *Match case* are saved.
+  - [x] Compact search bar: the quick filter row is hidden until the magnifier button (or `Ctrl+F`) opens it; closing it clears the filter. It stays visible while a filter is typed; a dot on the magnifier tells that *Show all* is on while the bar is hidden. *Show all* and *In files* are accent toggle buttons.

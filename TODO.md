@@ -3,9 +3,9 @@
 Ideas for the next versions. Pick, then move to the README roadmap when done.
 
 ## Priority
-- [ ] **Paste (`Ctrl+V`) into the current folder**: paste files/folders copied in Explorer, mail, desktop. Together with **Cut (`Ctrl+X`)** and **Duplicate**.
-- [ ] **+ Folder** button next to `+ TXT` / `+ MD`: creates a new folder and asks for its name right away.
-- [ ] **Search in folder files** ("grep"): type a text, get the list of files that contain it with the matching line; clicking a result opens the file with the find already on that match. Very useful for PL/SQL in `.txt` files.
+- [x] **Paste (`Ctrl+V`) into the current folder**: paste files/folders copied in Explorer, mail, desktop. Together with **Cut (`Ctrl+X`)** and **Duplicate**.
+- [x] **+ Folder** button next to `+ TXT` / `+ MD`: creates a new folder and asks for its name right away.
+- [x] **Search in folder files** ("grep"): type a text, get the list of files that contain it with the matching line; clicking a result opens the file with the find already on that match. Very useful for PL/SQL in `.txt` files.
 
 ## Useful, smaller
 - [ ] **Go to line (`Ctrl+G`)** and **line numbers** in the editor (for "error at line 340").

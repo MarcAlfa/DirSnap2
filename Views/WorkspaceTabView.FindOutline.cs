@@ -114,6 +114,35 @@ public sealed partial class WorkspaceTabView
         RunSearch(navigate: true);
     }
 
+    /// <summary>0-based line the next search should select a match on (Search in files result), -1 = none.</summary>
+    private int _pendingFindLine = -1;
+
+    /// <summary>Opens the find bar on <paramref name="query"/> with the first match at/after the given line selected.</summary>
+    private void ShowFindAtLine(string query, bool matchCase, int line)
+    {
+        if (ViewModel is not { IsPreviewUnlocked: true }) return;
+
+        _pendingFindLine = line;
+        FindMatchCaseToggle.IsChecked = matchCase;
+        FindBar.Visibility = Visibility.Visible;
+        FindTextBox.Text = query; // its TextChanged (later) finds the same match again
+        RunSearch(navigate: true);
+    }
+
+    /// <summary>Index in the TextBox text (lone CR line breaks) where the 0-based line starts.</summary>
+    private static int GetEditorLineStart(string text, int line)
+    {
+        int index = 0;
+        for (int l = 0; l < line; l++)
+        {
+            int cr = text.IndexOf('\r', index);
+            if (cr < 0) return text.Length;
+            index = cr + 1;
+            if (index < text.Length && text[index] == '\n') index++;
+        }
+        return index;
+    }
+
     private void CloseFind(bool focusEditor)
     {
         FindBar.Visibility = Visibility.Collapsed;
@@ -176,7 +205,12 @@ public sealed partial class WorkspaceTabView
                 p++;
             }
             startFrom = 0;
-            if (previous is { } prev && navigate)
+            if (_pendingFindLine >= 0)
+            {
+                int line = _pendingFindLine;
+                startFrom = _findMatches.FindIndex(m => m.Paragraph >= line);
+            }
+            else if (previous is { } prev && navigate)
                 startFrom = _findMatches.FindIndex(m => m.Paragraph > prev.Paragraph || (m.Paragraph == prev.Paragraph && m.ParagraphOffset >= prev.ParagraphOffset));
         }
         else
@@ -189,9 +223,12 @@ public sealed partial class WorkspaceTabView
                 idx += Math.Max(1, query.Length);
             }
             // Start from the caret, so "find" continues from where the user is reading/typing
-            int caret = previous?.Index ?? EditorTextBox.SelectionStart;
+            int caret = _pendingFindLine >= 0
+                ? GetEditorLineStart(text, _pendingFindLine)
+                : previous?.Index ?? EditorTextBox.SelectionStart;
             startFrom = _findMatches.FindIndex(m => m.Index >= caret);
         }
+        _pendingFindLine = -1;
 
         if (_findMatches.Count > 0)
         {
