@@ -59,6 +59,34 @@
                     <SolidColorBrush x:Key="TextFillColorSecondaryBrush" Color="#59636E" />
                     <SolidColorBrush x:Key="TextFillColorTertiaryBrush" Color="#8C959F" />
                     <SolidColorBrush x:Key="TextFillColorDisabledBrush" Color="#8C959F" />
+
+                    <!-- Standard Button & ToggleButton PointerOver & Pressed states for Light mode -->
+                    <!-- Normal buttons in light mode should hover to a clear light-gray tint (#E2E5EA), never white (#FFFFFF) -->
+                    <SolidColorBrush x:Key="ButtonBackground" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#E2E5EA" />
+                    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#D5D9E0" />
+                    <SolidColorBrush x:Key="ButtonForeground" Color="#1F2328" />
+                    <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="#1F2328" />
+                    <SolidColorBrush x:Key="ButtonForegroundPressed" Color="#1F2328" />
+                    <SolidColorBrush x:Key="ButtonBorderBrush" Color="#CBD0D8" />
+                    <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="#B8BFC9" />
+                    <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="#A6B0BC" />
+
+                    <!-- ToggleButton resources -->
+                    <SolidColorBrush x:Key="ToggleButtonBackground" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="ToggleButtonBackgroundPointerOver" Color="#E2E5EA" />
+                    <SolidColorBrush x:Key="ToggleButtonBackgroundPressed" Color="#D5D9E0" />
+                    <SolidColorBrush x:Key="ToggleButtonForeground" Color="#1F2328" />
+                    <SolidColorBrush x:Key="ToggleButtonForegroundPointerOver" Color="#1F2328" />
+                    <SolidColorBrush x:Key="ToggleButtonForegroundPressed" Color="#1F2328" />
+                    <SolidColorBrush x:Key="ToggleButtonBorderBrush" Color="#CBD0D8" />
+                    <SolidColorBrush x:Key="ToggleButtonBorderBrushPointerOver" Color="#B8BFC9" />
+
+                    <!-- Subtle control fill overrides so transparent/subtle buttons don't turn bright white -->
+                    <SolidColorBrush x:Key="SubtleFillColorSecondaryBrush" Color="#1F000000" />
+                    <SolidColorBrush x:Key="SubtleFillColorTertiaryBrush" Color="#2E000000" />
+                    <SolidColorBrush x:Key="ControlFillColorSecondaryBrush" Color="#E2E5EA" />
+                    <SolidColorBrush x:Key="ControlFillColorTertiaryBrush" Color="#D5D9E0" />
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
 
