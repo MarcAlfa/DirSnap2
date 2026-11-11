@@ -76,6 +76,107 @@ public sealed class ThemeService : IThemeService
         {
             rootElement.RequestedTheme = theme;
         }
+
+        // Apply theme-specific button and surface brushes dynamically
+        ApplyThemeResources(theme);
+    }
+
+    private void ApplyThemeResources(ElementTheme theme)
+    {
+        var resources = Application.Current.Resources;
+        bool isLight = theme == ElementTheme.Light;
+
+        if (isLight)
+        {
+            // Visible light gray hover tint (#E2E5EA), pressed (#D5D9E0), dark text (#1F2328)
+            var btnBgPointerOver = Color.FromArgb(255, 0xE2, 0xE5, 0xEA);
+            var btnBgPressed = Color.FromArgb(255, 0xD5, 0xD9, 0xE0);
+            var btnBorderPointerOver = Color.FromArgb(255, 0xB8, 0xBF, 0xC9);
+            var textPrimary = Color.FromArgb(255, 0x1F, 0x23, 0x28);
+
+            UpdateBrush(resources, "ButtonBackgroundPointerOver", btnBgPointerOver);
+            UpdateBrush(resources, "ButtonBackgroundPressed", btnBgPressed);
+            UpdateBrush(resources, "ButtonForegroundPointerOver", textPrimary);
+            UpdateBrush(resources, "ButtonForegroundPressed", textPrimary);
+            UpdateBrush(resources, "ButtonBorderBrushPointerOver", btnBorderPointerOver);
+
+            UpdateBrush(resources, "ToggleButtonBackgroundPointerOver", btnBgPointerOver);
+            UpdateBrush(resources, "ToggleButtonBackgroundPressed", btnBgPressed);
+            UpdateBrush(resources, "ToggleButtonForegroundPointerOver", textPrimary);
+            UpdateBrush(resources, "ToggleButtonForegroundPressed", textPrimary);
+            UpdateBrush(resources, "ToggleButtonBorderBrushPointerOver", btnBorderPointerOver);
+
+            UpdateBrush(resources, "ControlFillColorSecondaryBrush", btnBgPointerOver);
+            UpdateBrush(resources, "ControlFillColorTertiaryBrush", btnBgPressed);
+            UpdateBrush(resources, "SubtleFillColorSecondaryBrush", Color.FromArgb(0x1F, 0x00, 0x00, 0x00));
+            UpdateBrush(resources, "SubtleFillColorTertiaryBrush", Color.FromArgb(0x2E, 0x00, 0x00, 0x00));
+        }
+        else
+        {
+            // Dark mode standard brushes
+            var darkBtnBgPointerOver = Color.FromArgb(255, 0x38, 0x38, 0x38);
+            var darkBtnBgPressed = Color.FromArgb(255, 0x2E, 0x2E, 0x2E);
+            var darkBtnBorder = Color.FromArgb(255, 0x55, 0x55, 0x55);
+            var textWhite = Colors.White;
+
+            UpdateBrush(resources, "ButtonBackgroundPointerOver", darkBtnBgPointerOver);
+            UpdateBrush(resources, "ButtonBackgroundPressed", darkBtnBgPressed);
+            UpdateBrush(resources, "ButtonForegroundPointerOver", textWhite);
+            UpdateBrush(resources, "ButtonForegroundPressed", textWhite);
+            UpdateBrush(resources, "ButtonBorderBrushPointerOver", darkBtnBorder);
+
+            UpdateBrush(resources, "ToggleButtonBackgroundPointerOver", darkBtnBgPointerOver);
+            UpdateBrush(resources, "ToggleButtonBackgroundPressed", darkBtnBgPressed);
+            UpdateBrush(resources, "ToggleButtonForegroundPointerOver", textWhite);
+            UpdateBrush(resources, "ToggleButtonForegroundPressed", textWhite);
+            UpdateBrush(resources, "ToggleButtonBorderBrushPointerOver", darkBtnBorder);
+
+            UpdateBrush(resources, "ControlFillColorSecondaryBrush", Color.FromArgb(0x1A, 0xFF, 0xFF, 0xFF));
+            UpdateBrush(resources, "ControlFillColorTertiaryBrush", Color.FromArgb(0x12, 0xFF, 0xFF, 0xFF));
+            UpdateBrush(resources, "SubtleFillColorSecondaryBrush", Color.FromArgb(0x15, 0xFF, 0xFF, 0xFF));
+            UpdateBrush(resources, "SubtleFillColorTertiaryBrush", Color.FromArgb(0x0F, 0xFF, 0xFF, 0xFF));
+        }
+
+        // Also ensure theme dictionaries contain these keys directly
+        if (resources.ThemeDictionaries != null)
+        {
+            foreach (var dictKey in resources.ThemeDictionaries.Keys)
+            {
+                try
+                {
+                    if (resources.ThemeDictionaries[dictKey] is ResourceDictionary themeDict)
+                    {
+                        string dictKeyStr = dictKey?.ToString() ?? "";
+                        bool isDictLight = dictKeyStr.Equals("Light", StringComparison.OrdinalIgnoreCase);
+                        if (isDictLight)
+                        {
+                            var btnBgPointerOver = Color.FromArgb(255, 0xE2, 0xE5, 0xEA);
+                            var btnBgPressed = Color.FromArgb(255, 0xD5, 0xD9, 0xE0);
+                            var btnBorderPointerOver = Color.FromArgb(255, 0xB8, 0xBF, 0xC9);
+                            var textPrimary = Color.FromArgb(255, 0x1F, 0x23, 0x28);
+
+                            UpdateBrush(themeDict, "ButtonBackgroundPointerOver", btnBgPointerOver);
+                            UpdateBrush(themeDict, "ButtonBackgroundPressed", btnBgPressed);
+                            UpdateBrush(themeDict, "ButtonForegroundPointerOver", textPrimary);
+                            UpdateBrush(themeDict, "ButtonForegroundPressed", textPrimary);
+                            UpdateBrush(themeDict, "ButtonBorderBrushPointerOver", btnBorderPointerOver);
+
+                            UpdateBrush(themeDict, "ToggleButtonBackgroundPointerOver", btnBgPointerOver);
+                            UpdateBrush(themeDict, "ToggleButtonBackgroundPressed", btnBgPressed);
+                            UpdateBrush(themeDict, "ToggleButtonForegroundPointerOver", textPrimary);
+                            UpdateBrush(themeDict, "ToggleButtonForegroundPressed", textPrimary);
+                            UpdateBrush(themeDict, "ToggleButtonBorderBrushPointerOver", btnBorderPointerOver);
+
+                            UpdateBrush(themeDict, "ControlFillColorSecondaryBrush", btnBgPointerOver);
+                            UpdateBrush(themeDict, "ControlFillColorTertiaryBrush", btnBgPressed);
+                            UpdateBrush(themeDict, "SubtleFillColorSecondaryBrush", Color.FromArgb(0x1F, 0x00, 0x00, 0x00));
+                            UpdateBrush(themeDict, "SubtleFillColorTertiaryBrush", Color.FromArgb(0x2E, 0x00, 0x00, 0x00));
+                        }
+                    }
+                }
+                catch { }
+            }
+        }
     }
 
     public void SetAccentColor(string accentName)
