@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -11,7 +12,7 @@ using DirSnap2.Services;
 
 namespace DirSnap2.ViewModels;
 
-public sealed partial class WorkspaceTabViewModel : ObservableObject
+public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposable
 {
     private readonly IFileSystemService _fileSystemService;
     private readonly ITextFileService _textFileService;
@@ -28,7 +29,6 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
     private List<FSItem> _rawFiles = new();
 
     public ObservableCollection<FSItem> FlatItems { get; } = new();
-    public ObservableCollection<TreeNodeItem> TreeRoots { get; } = new();
 
     [ObservableProperty]
     private string _currentPath = "C:\\";
@@ -266,6 +266,11 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
         }
     }
 
+    public void Dispose()
+    {
+        _configService.ConfigChanged -= OnConfigChanged;
+    }
+
     private void UpdateTabTitle()
     {
         try
@@ -292,27 +297,103 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
     private void OnConfigChanged()
     {
         Refresh();
-        if (!string.IsNullOrEmpty(CurrentEditingFilePath))
+        // Only re-select if the editor does not hold dirty unsaved changes
+        if (!string.IsNullOrEmpty(CurrentEditingFilePath) && !IsEditorDirty)
         {
             SelectFile(CurrentEditingFilePath);
         }
     }
 
-    partial void OnSelectedItemChanged(FSItem? value)
+    private readonly SemaphoreSlim _unsavedDialogLock = new(1, 1);
+
+    /// <summary>
+    /// Checks if there are unsaved changes. If so, prompts the user via a native ContentDialog:
+    /// - "Save": saves the file and returns true (or false if saving fails).
+    /// - "Don't Save": discards modifications (IsEditorDirty = false) and returns true.
+    /// - "Cancel": leaves everything as-is and returns false.
+    /// </summary>
+    public async Task<bool> ConfirmDiscardUnsavedChangesAsync(XamlRoot? xamlRoot = null)
     {
-        if (value == null)
+        if (!IsEditorDirty || string.IsNullOrEmpty(CurrentEditingFilePath))
+            return true;
+
+        var root = xamlRoot ?? App.MainAppWindow?.Content?.XamlRoot;
+        if (root == null)
+            return true;
+
+        if (!await _unsavedDialogLock.WaitAsync(0))
+        {
+            // Dialog already in progress
+            return false;
+        }
+
+        try
+        {
+            var dialog = new ContentDialog
+            {
+                Title = "Unsaved Changes",
+                Content = $"Do you want to save the changes you made to '{CurrentEditingFileName}' before proceeding?",
+                PrimaryButtonText = "Save",
+                SecondaryButtonText = "Don't Save",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = root,
+                RequestedTheme = ThemeService.ActiveTheme
+            };
+
+            var result = await dialog.ShowAsync();
+            if (result == ContentDialogResult.Primary)
+            {
+                SaveEditorFile();
+                return !IsEditorDirty;
+            }
+            else if (result == ContentDialogResult.Secondary)
+            {
+                IsEditorDirty = false;
+                return true;
+            }
+            else
+            {
+                // Cancel
+                return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error("[ConfirmDiscardUnsavedChangesAsync] Error showing dialog", ex);
+            return false;
+        }
+        finally
+        {
+            _unsavedDialogLock.Release();
+        }
+    }
+
+    partial void OnSelectedItemChanged(FSItem? oldValue, FSItem? newValue)
+    {
+        if (oldValue != null)
+        {
+            oldValue.IsSelected = false;
+        }
+
+        if (newValue != null)
+        {
+            newValue.IsSelected = true;
+        }
+
+        if (newValue == null)
         {
             // Do not clear file selection if ListView is virtualizing or switching tab context
             return;
         }
 
-        if (value.Name == ".." || value.IsDirectory)
+        if (newValue.Name == ".." || newValue.IsDirectory)
         {
             ClearFileSelection();
         }
         else
         {
-            SelectFile(value.Path);
+            SelectFile(newValue.Path);
         }
     }
 
@@ -359,8 +440,13 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
     }
 
     [RelayCommand]
-    public void NavigateTo(string path)
+    public async Task NavigateTo(string path)
     {
+        if (IsEditorDirty)
+        {
+            if (!await ConfirmDiscardUnsavedChangesAsync())
+                return;
+        }
         NavigateToInternal(path, recordHistory: true);
     }
 
@@ -389,9 +475,15 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
     }
 
     [RelayCommand]
-    public void GoBack()
+    public async Task GoBack()
     {
         if (_backHistory.Count == 0) return;
+
+        if (IsEditorDirty)
+        {
+            if (!await ConfirmDiscardUnsavedChangesAsync())
+                return;
+        }
 
         var prev = _backHistory.Pop();
         _forwardHistory.Push(CurrentPath);
@@ -406,9 +498,15 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
     }
 
     [RelayCommand]
-    public void GoForward()
+    public async Task GoForward()
     {
         if (_forwardHistory.Count == 0) return;
+
+        if (IsEditorDirty)
+        {
+            if (!await ConfirmDiscardUnsavedChangesAsync())
+                return;
+        }
 
         var next = _forwardHistory.Pop();
         _backHistory.Push(CurrentPath);
@@ -423,12 +521,17 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
     }
 
     [RelayCommand]
-    public void GoUp()
+    public async Task GoUp()
     {
         var parent = Path.GetDirectoryName(CurrentPath);
         if (!string.IsNullOrEmpty(parent) && Directory.Exists(parent))
         {
-            NavigateTo(parent);
+            if (IsEditorDirty)
+            {
+                if (!await ConfirmDiscardUnsavedChangesAsync())
+                    return;
+            }
+            NavigateToInternal(parent, recordHistory: true);
         }
     }
 
@@ -506,9 +609,13 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
         if (!string.IsNullOrEmpty(CurrentEditingFilePath))
         {
             var matching = FlatItems.FirstOrDefault(x => string.Equals(x.Path, CurrentEditingFilePath, StringComparison.OrdinalIgnoreCase));
-            if (matching != null && SelectedItem != matching)
+            if (matching != null)
             {
-                SelectedItem = matching;
+                if (SelectedItem != matching)
+                {
+                    SelectedItem = matching;
+                }
+                matching.IsSelected = true;
             }
         }
     }
@@ -528,51 +635,6 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
 
         ApplyFilterAndSort();
         _configService.Save();
-    }
-
-    private void LoadTree()
-    {
-        TreeRoots.Clear();
-        var allowedExt = _configService.Current.EditorExtensions;
-        var children = _fileSystemService.GetTreeChildren(CurrentPath, ShowAll, allowedExt);
-
-        var rootNode = new TreeNodeItem
-        {
-            Name = Path.GetFileName(CurrentPath) is { Length: > 0 } fn ? fn : CurrentPath,
-            Path = CurrentPath,
-            IsDirectory = true,
-            IsExpanded = true,
-            HasUnrealizedChildren = false
-        };
-
-        foreach (var c in children)
-        {
-            rootNode.Children.Add(c);
-        }
-
-        TreeRoots.Add(rootNode);
-    }
-
-    public void ExpandTreeNode(TreeNodeItem node)
-    {
-        if (!node.IsDirectory || !node.HasUnrealizedChildren) return;
-
-        node.IsLoading = true;
-        try
-        {
-            var allowedExt = _configService.Current.EditorExtensions;
-            var children = _fileSystemService.GetTreeChildren(node.Path, ShowAll, allowedExt);
-            node.Children.Clear();
-            foreach (var c in children)
-            {
-                node.Children.Add(c);
-            }
-            node.HasUnrealizedChildren = false;
-        }
-        finally
-        {
-            node.IsLoading = false;
-        }
     }
 
     // ==================== SNAP LIST ACTIONS ====================
@@ -822,6 +884,11 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
 
     public void ClearFileSelection()
     {
+        if (SelectedItem != null)
+        {
+            SelectedItem.IsSelected = false;
+        }
+
         IsLoadingFile = true;
         try
         {

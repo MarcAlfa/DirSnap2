@@ -1,4 +1,5 @@
 using System.IO;
+using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
@@ -10,7 +11,7 @@ namespace DirSnap2.Models;
 /// <summary>
 /// Represents a filesystem item (directory or file) with icons and formatting.
 /// </summary>
-public sealed class FSItem
+public sealed partial class FSItem : ObservableObject
 {
     private static readonly Dictionary<string, SolidColorBrush> BrushCache = new(StringComparer.OrdinalIgnoreCase);
 
@@ -22,6 +23,12 @@ public sealed class FSItem
     public bool IsEvenRow { get; set; }
     public bool IsCurrentFolder { get; set; }
     public bool IsShowAllOnly { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ItemForegroundBrush))]
+    [NotifyPropertyChangedFor(nameof(DetailsForegroundBrush))]
+    [NotifyPropertyChangedFor(nameof(ItemFontWeight))]
+    private bool _isSelected;
 
     public SolidColorBrush? TreeItemHighlightBrush =>
         IsCurrentFolder && Application.Current.Resources.TryGetValue("AppAccentSubtleBrush", out var brush)
@@ -40,6 +47,11 @@ public sealed class FSItem
     {
         get
         {
+            if (IsSelected && Application.Current.Resources.TryGetValue("AppAccentBrush", out var selBrush) && selBrush is SolidColorBrush sab)
+            {
+                return sab;
+            }
+
             if (IsCurrentFolder && Application.Current.Resources.TryGetValue("AppAccentBrush", out var brush) && brush is SolidColorBrush acb)
             {
                 return acb;
@@ -57,6 +69,29 @@ public sealed class FSItem
                 : DarkNormalTextBrush;
         }
     }
+
+    public SolidColorBrush DetailsForegroundBrush
+    {
+        get
+        {
+            if (IsSelected && Application.Current.Resources.TryGetValue("AppAccentBrush", out var selBrush) && selBrush is SolidColorBrush sab)
+            {
+                return sab;
+            }
+
+            if (Application.Current.Resources.TryGetValue("TextFillColorSecondaryBrush", out var secBrush) && secBrush is SolidColorBrush sb)
+            {
+                return sb;
+            }
+
+            return ThemeService.ActiveTheme == ElementTheme.Light
+                ? LightDimmedTextBrush
+                : DarkDimmedTextBrush;
+        }
+    }
+
+    public Windows.UI.Text.FontWeight ItemFontWeight =>
+        (IsSelected || IsCurrentFolder) ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal;
 
     public SolidColorBrush TreeItemForegroundBrush => ItemForegroundBrush;
 

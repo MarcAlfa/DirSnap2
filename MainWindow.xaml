@@ -121,6 +121,8 @@
                                  KeyDown="AddressTextBox_KeyDown"
                                  VerticalAlignment="Center"
                                  FontSize="12"
+                                 FontWeight="SemiBold"
+                                 Foreground="{ThemeResource AppAccentBrush}"
                                  Padding="8,5,58,5">
                             <TextBox.Resources>
                                 <!-- Suppress default transient WinUI delete button so our dedicated buttons are always visible -->
@@ -131,6 +133,10 @@
                                     <Setter Property="MinWidth" Value="0" />
                                     <Setter Property="MinHeight" Value="0" />
                                 </Style>
+                                <!-- Keep address path text in accent color across all visual states -->
+                                <StaticResource x:Key="TextControlForeground" ResourceKey="AppAccentBrush" />
+                                <StaticResource x:Key="TextControlForegroundPointerOver" ResourceKey="AppAccentBrush" />
+                                <StaticResource x:Key="TextControlForegroundFocused" ResourceKey="AppAccentBrush" />
                             </TextBox.Resources>
                         </TextBox>
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,4,0" Spacing="2">

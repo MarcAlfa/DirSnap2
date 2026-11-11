@@ -101,6 +101,8 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private bool _isClosingConfirmed;
+
     private void ConfigureWindow()
     {
         try
@@ -115,9 +117,31 @@ public sealed partial class MainWindow : Window
             // Restore geometry & monitor index
             WindowPlacementService.RestoreWindow(appWindow, _configService.Current.Window);
 
-            // Hook AppWindow Closing to guarantee state save
-            appWindow.Closing += (s, e) =>
+            // Hook AppWindow Closing to guarantee state save and prompt for unsaved files
+            appWindow.Closing += async (s, e) =>
             {
+                if (_isClosingConfirmed)
+                    return;
+
+                var dirtyTabs = ViewModel.Tabs.Where(t => t.IsEditorDirty).ToList();
+                if (dirtyTabs.Count > 0)
+                {
+                    e.Cancel = true;
+                    foreach (var dirtyTab in dirtyTabs)
+                    {
+                        ViewModel.ActiveTab = dirtyTab;
+                        bool proceed = await dirtyTab.ConfirmDiscardUnsavedChangesAsync(((FrameworkElement)Content).XamlRoot);
+                        if (!proceed)
+                        {
+                            return; // User canceled exit
+                        }
+                    }
+
+                    _isClosingConfirmed = true;
+                    Close();
+                    return;
+                }
+
                 try
                 {
                     WindowPlacementService.SaveWindow(appWindow, _configService.Current.Window);
@@ -125,13 +149,13 @@ public sealed partial class MainWindow : Window
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"[MainWindow] AppWindow.Closing save error: {ex.Message}");
+                    AppLogger.Error($"[MainWindow] AppWindow.Closing save error: {ex.Message}", ex);
                 }
             };
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[MainWindow] ConfigureWindow error: {ex.Message}");
+            AppLogger.Error($"[MainWindow] ConfigureWindow error: {ex.Message}", ex);
         }
     }
 
@@ -150,7 +174,7 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[MainWindow] MainWindow_Closed error: {ex.Message}");
+            AppLogger.Error($"[MainWindow] MainWindow_Closed error: {ex.Message}", ex);
         }
     }
 
@@ -161,10 +185,16 @@ public sealed partial class MainWindow : Window
         ViewModel.AddNewTabCommand.Execute(null);
     }
 
-    private void MainTabView_TabCloseRequested(TabView sender, TabViewTabCloseRequestedEventArgs args)
+    private async void MainTabView_TabCloseRequested(TabView sender, TabViewTabCloseRequestedEventArgs args)
     {
         if (args.Item is WorkspaceTabViewModel tab)
         {
+            if (tab.IsEditorDirty)
+            {
+                bool proceed = await tab.ConfirmDiscardUnsavedChangesAsync(((FrameworkElement)Content).XamlRoot);
+                if (!proceed)
+                    return;
+            }
             ViewModel.CloseTabCommand.Execute(tab);
         }
     }
@@ -390,11 +420,19 @@ public sealed partial class MainWindow : Window
             if (file != null)
             {
                 ViewModel.SnapList.ExportToTxt(file.Path);
+                if (ViewModel.ActiveTab != null)
+                {
+                    ViewModel.ActiveTab.StatusMessage = $"Exported {ViewModel.SnapList.Count} items to '{file.Name}'";
+                }
             }
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[MainWindow] ExportTxt error: {ex.Message}");
+            AppLogger.Error($"[MainWindow] ExportTxt error: {ex.Message}", ex);
+            if (ViewModel.ActiveTab != null)
+            {
+                ViewModel.ActiveTab.StatusMessage = $"Export to TXT failed: {ex.Message}";
+            }
         }
     }
 
@@ -414,11 +452,19 @@ public sealed partial class MainWindow : Window
             if (file != null)
             {
                 ViewModel.SnapList.ExportToCsv(file.Path);
+                if (ViewModel.ActiveTab != null)
+                {
+                    ViewModel.ActiveTab.StatusMessage = $"Exported {ViewModel.SnapList.Count} items to '{file.Name}'";
+                }
             }
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[MainWindow] ExportCsv error: {ex.Message}");
+            AppLogger.Error($"[MainWindow] ExportCsv error: {ex.Message}", ex);
+            if (ViewModel.ActiveTab != null)
+            {
+                ViewModel.ActiveTab.StatusMessage = $"Export to CSV failed: {ex.Message}";
+            }
         }
     }
 
@@ -440,7 +486,7 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[MainWindow] SettingsDialog error: {ex.Message}");
+            AppLogger.Error($"[MainWindow] SettingsDialog error: {ex.Message}", ex);
         }
     }
 }

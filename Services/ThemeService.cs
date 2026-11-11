@@ -259,7 +259,7 @@ public sealed class ThemeService : IThemeService
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[ThemeService] Skipping read-only resource '{key}': {ex.Message}");
+            AppLogger.DebugLog($"[ThemeService] Skipping read-only resource '{key}': {ex.Message}");
         }
     }
 }

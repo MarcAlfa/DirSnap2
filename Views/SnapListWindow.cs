@@ -201,7 +201,7 @@ public sealed class SnapListWindow : Window
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[SnapListWindow] ConfigureAppWindow error: {ex.Message}");
+            AppLogger.Error($"[SnapListWindow] ConfigureAppWindow error: {ex.Message}", ex);
         }
     }
 
@@ -238,7 +238,7 @@ public sealed class SnapListWindow : Window
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[SnapListWindow] ExportTxt error: {ex.Message}");
+            AppLogger.Error($"[SnapListWindow] ExportTxt error: {ex.Message}", ex);
         }
     }
 
@@ -262,7 +262,7 @@ public sealed class SnapListWindow : Window
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[SnapListWindow] ExportCsv error: {ex.Message}");
+            AppLogger.Error($"[SnapListWindow] ExportCsv error: {ex.Message}", ex);
         }
     }
 }

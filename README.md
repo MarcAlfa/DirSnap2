@@ -5,7 +5,7 @@
 ---
 
 ## 📌 Versioning
-- **Current Version**: `0.0.6`
+- **Current Version**: `0.0.7`
 - **Single Source of Truth**: Defined strictly in `AppConstants.cs` (`AppConstants.AppVersion`). All components, UI titles, export headers, and metadata reference this single constant.
 
 ---
@@ -152,3 +152,14 @@ Replaces the old Lists tab with an intuitive "shopping cart" paradigm:
   - [x] Editor Dirty & Save Button Visibility Fix: Fixed bug where the "Save" button and asterisk `*` prematurely appeared upon selecting or previewing locked/unmodified files due to internal TextBox data binding changes triggering `TextChanged`. Added `OriginalText` diff tracking, `IsLoadingFile` guard, and strict `IsEditorLocked` checks so the Save button strictly only appears when actual user edits diverge from saved content.
   - [x] Pure Folder Tree Navigation & Auto-Close: Filtered out files from the "Folder Tree" flyout (`SyncTreeToCurrentPath` and `HierarchicalTreeView_Expanding`), showing exclusively directories for quick and distraction-free folder jumping. Double-clicking any folder or pressing `Enter` now navigates directly to the target folder and automatically closes the dropdown flyout.
   - [x] Contextual Toolbar Controls Visibility: Word Wrap Toggle, Format JSON, and the Read-Only badge are now strictly displayed only when an active text file is being previewed or edited (`IsPreviewUnlocked`). They automatically hide when non-text files (images, audio .wav, videos, binaries, oversized files) or no files are selected.
+- [x] **Phase 10: Version 0.0.7 - Unsaved Changes Protection, Config Resilience, Toolbar Toggles & Preview Enhancements**
+  - [x] Version bump to `0.0.7` across `AppConstants.cs`, `DirSnap2.csproj`, and `app.manifest`
+  - [x] Unsaved Changes Protection Dialog: Prevents accidental loss of edits when navigating away, switching files in the table or tree, closing tabs, or exiting the application with Save, Discard, and Cancel options.
+  - [x] Resilient Configuration Persistence: Implemented automatic `config.json.bak` generation, atomic temp file write/replacement, and automatic corruption recovery preserving malformed files as `config.corrupted_*.json`.
+  - [x] Production Logging System: Replaced transient `Debug.WriteLine` calls across all services and windows with structured, thread-safe `AppLogger` logging.
+  - [x] Robust Clipboard & Export Error Handling: Guarded clipboard copy operations and file exports with try-catch blocks and instant user feedback in the status bar.
+  - [x] Resource Leak Prevention: `WorkspaceTabViewModel` implements `IDisposable` to cleanly unregister event handlers (`ConfigChanged`) when closing tabs.
+  - [x] Accent Highlights: File/folder selection rows and the global address bar path text now display with the active accent color (`AppAccentBrush`) across both Light and Dark themes.
+  - [x] WinUI 3 ToggleButton Fix: Aligned `ToolbarToggleButtonStyle` with WinUI 3's `CommonStates` model so `Unlock` and `Word Wrap` icons cleanly toggle on and off.
+  - [x] Preview Vertical Scrollbar: Enabled automatic vertical scrolling (`VerticalScrollBarVisibility="Auto"`) in the text editor whenever content overflows the viewport height.
+  - [x] Floating `<TOP>` Smooth Scroll Button: Added dynamic floating button in the editor bottom-right corner that appears when scrolling down (>80px) and smoothly scrolls back to the beginning on click.

@@ -94,14 +94,14 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    public void NavigateAddressBar()
+    public async Task NavigateAddressBar()
     {
         if (ActiveTab != null && !string.IsNullOrWhiteSpace(CurrentAddressBarPath))
         {
             var target = CurrentAddressBarPath.Trim();
             if (Directory.Exists(target))
             {
-                ActiveTab.NavigateTo(target);
+                await ActiveTab.NavigateTo(target);
                 NotifyFavoriteProperties();
                 SaveWorkspace();
             }
@@ -234,12 +234,13 @@ public sealed partial class MainViewModel : ObservableObject
         if (Tabs.Count <= 1)
         {
             // Do not close the last remaining tab: navigate it to C:\ instead
-            tab.NavigateTo("C:\\");
+            tab.NavigateToInternal("C:\\", recordHistory: false);
             return;
         }
 
         int index = Tabs.IndexOf(tab);
         Tabs.Remove(tab);
+        tab.Dispose();
 
         if (ActiveTab == tab)
         {

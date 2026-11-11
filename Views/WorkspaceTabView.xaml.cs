@@ -40,6 +40,9 @@ public sealed partial class WorkspaceTabView : UserControl
             UpdateEditorViewMode();
         };
 
+        MarkdownScrollViewer.ViewChanged += (_, _) => UpdateScrollToTopButtonVisibility();
+        EditorTextBox.Loaded += (_, _) => HookEditorScrollViewer();
+
         DataContextChanged += OnDataContextChanged;
     }
 
@@ -84,12 +87,15 @@ public sealed partial class WorkspaceTabView : UserControl
         {
             MarkdownScrollViewer.Visibility = Visibility.Collapsed;
             EditorTextBox.Visibility = Visibility.Collapsed;
+            ScrollToTopButton.Visibility = Visibility.Collapsed;
             return;
         }
 
         var scrollMode = ViewModel.EditorWrap ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto;
         MarkdownScrollViewer.HorizontalScrollBarVisibility = scrollMode;
         ScrollViewer.SetHorizontalScrollBarVisibility(EditorTextBox, scrollMode);
+        ScrollViewer.SetVerticalScrollBarVisibility(EditorTextBox, ScrollBarVisibility.Auto);
+        ScrollViewer.SetVerticalScrollMode(EditorTextBox, ScrollMode.Auto);
         MarkdownRichTextBlock.TextWrapping = ViewModel.EditorTextWrapping;
         EditorTextBox.TextWrapping = ViewModel.EditorTextWrapping;
 
@@ -104,7 +110,10 @@ public sealed partial class WorkspaceTabView : UserControl
         {
             MarkdownScrollViewer.Visibility = Visibility.Collapsed;
             EditorTextBox.Visibility = Visibility.Visible;
+            HookEditorScrollViewer();
         }
+
+        UpdateScrollToTopButtonVisibility();
     }
 
     // ==================== CURRENT FOLDER TREE FLYOUT ====================
@@ -223,10 +232,30 @@ public sealed partial class WorkspaceTabView : UserControl
 
     // ==================== FLAT LIST ACTIONS ====================
 
-    private void FlatListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private bool _isRevertingSelection;
+
+    private async void FlatListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (ViewModel != null && FlatListView.SelectedItem is FSItem item)
+        if (_isRevertingSelection || ViewModel == null) return;
+
+        if (FlatListView.SelectedItem is FSItem item)
         {
+            if (ViewModel.IsEditorDirty && !string.Equals(item.Path, ViewModel.CurrentEditingFilePath, StringComparison.OrdinalIgnoreCase))
+            {
+                _isRevertingSelection = true;
+                bool proceed = await ViewModel.ConfirmDiscardUnsavedChangesAsync(XamlRoot);
+                _isRevertingSelection = false;
+
+                if (!proceed)
+                {
+                    // Revert selection back to current editing file
+                    _isRevertingSelection = true;
+                    FlatListView.SelectedItem = ViewModel.FlatItems.FirstOrDefault(x => string.Equals(x.Path, ViewModel.CurrentEditingFilePath, StringComparison.OrdinalIgnoreCase));
+                    _isRevertingSelection = false;
+                    return;
+                }
+            }
+
             if (item.Name != ".." && !item.IsDirectory)
             {
                 ViewModel.SelectFile(item.Path);
@@ -238,9 +267,15 @@ public sealed partial class WorkspaceTabView : UserControl
         }
     }
 
-    private void FlatListView_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    private async void FlatListView_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
         if (ViewModel?.SelectedItem is not { } item) return;
+
+        if (ViewModel.IsEditorDirty)
+        {
+            bool proceed = await ViewModel.ConfirmDiscardUnsavedChangesAsync(XamlRoot);
+            if (!proceed) return;
+        }
 
         if (item.Name == "..")
         {
@@ -260,7 +295,7 @@ public sealed partial class WorkspaceTabView : UserControl
         }
     }
 
-    private void FlatListView_KeyDown(object sender, KeyRoutedEventArgs e)
+    private async void FlatListView_KeyDown(object sender, KeyRoutedEventArgs e)
     {
         if (ViewModel?.SelectedItem is not { } item) return;
 
@@ -271,6 +306,16 @@ public sealed partial class WorkspaceTabView : UserControl
         }
         else if (e.Key == VirtualKey.Enter)
         {
+            if (ViewModel.IsEditorDirty && (item.IsDirectory || !string.Equals(item.Path, ViewModel.CurrentEditingFilePath, StringComparison.OrdinalIgnoreCase)))
+            {
+                bool proceed = await ViewModel.ConfirmDiscardUnsavedChangesAsync(XamlRoot);
+                if (!proceed)
+                {
+                    e.Handled = true;
+                    return;
+                }
+            }
+
             if (item.Name == "..")
                 ViewModel.GoUpCommand.Execute(null);
             else if (item.IsDirectory)
@@ -329,14 +374,7 @@ public sealed partial class WorkspaceTabView : UserControl
     {
         if (ViewModel?.SelectedItem is { } item)
         {
-            var full = System.IO.Path.GetFullPath(item.Path);
-            string wsl = full;
-            if (full.Length >= 2 && full[1] == ':')
-            {
-                var drive = char.ToLowerInvariant(full[0]);
-                var rest = full.Substring(2).Replace('\\', '/');
-                wsl = $"/mnt/{drive}{rest}";
-            }
+            var wsl = ViewModel.FileSystemService.ToWslPath(item.Path);
             var dp = new DataPackage();
             dp.SetText(wsl);
             Clipboard.SetContent(dp);
@@ -517,12 +555,18 @@ public sealed partial class WorkspaceTabView : UserControl
         }
     }
 
-    private void HierarchicalTreeView_ItemInvoked(TreeView sender, TreeViewItemInvokedEventArgs args)
+    private async void HierarchicalTreeView_ItemInvoked(TreeView sender, TreeViewItemInvokedEventArgs args)
     {
         try
         {
             var item = (args.InvokedItem as TreeViewNode)?.Content as FSItem ?? args.InvokedItem as FSItem;
             if (item == null || ViewModel == null) return;
+
+            if (ViewModel.IsEditorDirty && (item.IsDirectory || !string.Equals(item.Path, ViewModel.CurrentEditingFilePath, StringComparison.OrdinalIgnoreCase)))
+            {
+                bool proceed = await ViewModel.ConfirmDiscardUnsavedChangesAsync(XamlRoot);
+                if (!proceed) return;
+            }
 
             AppLogger.Info($"[HierarchicalTreeView_ItemInvoked] Invoked: {item.Path} (IsDir={item.IsDirectory})");
             if (item.IsDirectory)
@@ -541,13 +585,19 @@ public sealed partial class WorkspaceTabView : UserControl
         }
     }
 
-    private void HierarchicalTreeView_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    private async void HierarchicalTreeView_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
         try
         {
             var item = (HierarchicalTreeView.SelectedItem as TreeViewNode)?.Content as FSItem ?? HierarchicalTreeView.SelectedItem as FSItem;
             if (item is { IsDirectory: true } && ViewModel != null)
             {
+                if (ViewModel.IsEditorDirty)
+                {
+                    bool proceed = await ViewModel.ConfirmDiscardUnsavedChangesAsync(XamlRoot);
+                    if (!proceed) return;
+                }
+
                 AppLogger.Info($"[HierarchicalTreeView_DoubleTapped] DoubleTapped: {item.Path}");
                 ViewModel.NavigateToInternal(item.Path, recordHistory: true);
                 FolderTreeFlyout.Hide();
@@ -560,6 +610,12 @@ public sealed partial class WorkspaceTabView : UserControl
                 var targetItem = (fe.DataContext as TreeViewNode)?.Content as FSItem ?? fe.DataContext as FSItem;
                 if (targetItem is { IsDirectory: true } && ViewModel != null)
                 {
+                    if (ViewModel.IsEditorDirty)
+                    {
+                        bool proceed = await ViewModel.ConfirmDiscardUnsavedChangesAsync(XamlRoot);
+                        if (!proceed) return;
+                    }
+
                     AppLogger.Info($"[HierarchicalTreeView_DoubleTapped] OriginalSource DoubleTapped: {targetItem.Path}");
                     ViewModel.NavigateToInternal(targetItem.Path, recordHistory: true);
                     FolderTreeFlyout.Hide();
@@ -723,5 +779,74 @@ public sealed partial class WorkspaceTabView : UserControl
         {
             ViewModel.IsEditorDirty = !string.Equals(EditorTextBox.Text, ViewModel.OriginalText, StringComparison.Ordinal);
         }
+        UpdateScrollToTopButtonVisibility();
+    }
+
+    // ==================== SCROLL TO TOP (<TOP>) ====================
+
+    private ScrollViewer? _editorScrollViewer;
+
+    private void HookEditorScrollViewer()
+    {
+        if (_editorScrollViewer != null)
+            return;
+
+        _editorScrollViewer = FindVisualChild<ScrollViewer>(EditorTextBox);
+        if (_editorScrollViewer != null)
+        {
+            _editorScrollViewer.ViewChanged += (_, _) => UpdateScrollToTopButtonVisibility();
+        }
+    }
+
+    private void UpdateScrollToTopButtonVisibility()
+    {
+        double verticalOffset = 0;
+        if (MarkdownScrollViewer.Visibility == Visibility.Visible)
+        {
+            verticalOffset = MarkdownScrollViewer.VerticalOffset;
+        }
+        else if (EditorTextBox.Visibility == Visibility.Visible)
+        {
+            HookEditorScrollViewer();
+            if (_editorScrollViewer != null)
+            {
+                verticalOffset = _editorScrollViewer.VerticalOffset;
+            }
+        }
+
+        ScrollToTopButton.Visibility = verticalOffset > 80 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void ScrollToTopButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (MarkdownScrollViewer.Visibility == Visibility.Visible)
+        {
+            MarkdownScrollViewer.ChangeView(null, 0, null, false);
+        }
+        else if (EditorTextBox.Visibility == Visibility.Visible)
+        {
+            HookEditorScrollViewer();
+            if (_editorScrollViewer != null)
+            {
+                _editorScrollViewer.ChangeView(null, 0, null, false);
+            }
+            EditorTextBox.Select(0, 0);
+        }
+    }
+
+    private static T? FindVisualChild<T>(DependencyObject parent) where T : DependencyObject
+    {
+        int count = VisualTreeHelper.GetChildrenCount(parent);
+        for (int i = 0; i < count; i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is T typedChild)
+                return typedChild;
+
+            var nested = FindVisualChild<T>(child);
+            if (nested != null)
+                return nested;
+        }
+        return null;
     }
 }

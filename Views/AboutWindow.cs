@@ -70,7 +70,7 @@ public sealed class AboutWindow : Window
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[AboutWindow] Window setup error: {ex.Message}");
+            AppLogger.Error($"[AboutWindow] Window setup error: {ex.Message}", ex);
         }
 
         // Active Accent Brush

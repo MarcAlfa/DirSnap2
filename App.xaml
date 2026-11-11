@@ -207,30 +207,93 @@
                                                   VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
                                                   AutomationProperties.AccessibilityView="Raw" />
                                 <VisualStateManager.VisualStateGroups>
-                                    <VisualStateGroup x:Name="CheckStates">
-                                        <VisualState x:Name="Unchecked" />
-                                        <VisualState x:Name="Checked">
+                                    <VisualStateGroup x:Name="CommonStates">
+                                        <VisualState x:Name="Normal">
                                             <VisualState.Setters>
-                                                <Setter Target="ActiveBackground.Opacity" Value="1" />
-                                                <Setter Target="ContentPresenter.Foreground" Value="White" />
-                                                <Setter Target="RootGrid.BorderBrush" Value="{ThemeResource AppAccentBrush}" />
+                                                <Setter Target="ActiveBackground.Opacity" Value="0" />
+                                                <Setter Target="HoverOverlay.Opacity" Value="0" />
+                                                <Setter Target="ContentPresenter.Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+                                                <Setter Target="RootGrid.BorderBrush" Value="{ThemeResource AppBorderBrush}" />
                                             </VisualState.Setters>
                                         </VisualState>
-                                        <VisualState x:Name="Indeterminate" />
-                                    </VisualStateGroup>
-                                    <VisualStateGroup x:Name="CommonStates">
-                                        <VisualState x:Name="Normal" />
                                         <VisualState x:Name="PointerOver">
                                             <VisualState.Setters>
+                                                <Setter Target="ActiveBackground.Opacity" Value="0" />
                                                 <Setter Target="HoverOverlay.Opacity" Value="0.12" />
+                                                <Setter Target="ContentPresenter.Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+                                                <Setter Target="RootGrid.BorderBrush" Value="{ThemeResource AppBorderBrush}" />
                                             </VisualState.Setters>
                                         </VisualState>
                                         <VisualState x:Name="Pressed">
                                             <VisualState.Setters>
+                                                <Setter Target="ActiveBackground.Opacity" Value="0" />
                                                 <Setter Target="HoverOverlay.Opacity" Value="0.24" />
+                                                <Setter Target="ContentPresenter.Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+                                                <Setter Target="RootGrid.BorderBrush" Value="{ThemeResource AppAccentBrush}" />
                                             </VisualState.Setters>
                                         </VisualState>
                                         <VisualState x:Name="Disabled">
+                                            <VisualState.Setters>
+                                                <Setter Target="RootGrid.Opacity" Value="0.4" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="Checked">
+                                            <VisualState.Setters>
+                                                <Setter Target="ActiveBackground.Opacity" Value="1" />
+                                                <Setter Target="HoverOverlay.Opacity" Value="0" />
+                                                <Setter Target="ContentPresenter.Foreground" Value="White" />
+                                                <Setter Target="RootGrid.BorderBrush" Value="{ThemeResource AppAccentBrush}" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="CheckedPointerOver">
+                                            <VisualState.Setters>
+                                                <Setter Target="ActiveBackground.Opacity" Value="1" />
+                                                <Setter Target="HoverOverlay.Opacity" Value="0.16" />
+                                                <Setter Target="ContentPresenter.Foreground" Value="White" />
+                                                <Setter Target="RootGrid.BorderBrush" Value="{ThemeResource AppAccentBrush}" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="CheckedPressed">
+                                            <VisualState.Setters>
+                                                <Setter Target="ActiveBackground.Opacity" Value="1" />
+                                                <Setter Target="HoverOverlay.Opacity" Value="0.28" />
+                                                <Setter Target="ContentPresenter.Foreground" Value="White" />
+                                                <Setter Target="RootGrid.BorderBrush" Value="{ThemeResource AppAccentBrush}" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="CheckedDisabled">
+                                            <VisualState.Setters>
+                                                <Setter Target="ActiveBackground.Opacity" Value="0.6" />
+                                                <Setter Target="ContentPresenter.Foreground" Value="White" />
+                                                <Setter Target="RootGrid.BorderBrush" Value="{ThemeResource AppAccentBrush}" />
+                                                <Setter Target="RootGrid.Opacity" Value="0.4" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="Indeterminate">
+                                            <VisualState.Setters>
+                                                <Setter Target="ActiveBackground.Opacity" Value="0" />
+                                                <Setter Target="HoverOverlay.Opacity" Value="0" />
+                                                <Setter Target="ContentPresenter.Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+                                                <Setter Target="RootGrid.BorderBrush" Value="{ThemeResource AppBorderBrush}" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="IndeterminatePointerOver">
+                                            <VisualState.Setters>
+                                                <Setter Target="ActiveBackground.Opacity" Value="0" />
+                                                <Setter Target="HoverOverlay.Opacity" Value="0.12" />
+                                                <Setter Target="ContentPresenter.Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+                                                <Setter Target="RootGrid.BorderBrush" Value="{ThemeResource AppBorderBrush}" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="IndeterminatePressed">
+                                            <VisualState.Setters>
+                                                <Setter Target="ActiveBackground.Opacity" Value="0" />
+                                                <Setter Target="HoverOverlay.Opacity" Value="0.24" />
+                                                <Setter Target="ContentPresenter.Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+                                                <Setter Target="RootGrid.BorderBrush" Value="{ThemeResource AppAccentBrush}" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="IndeterminateDisabled">
                                             <VisualState.Setters>
                                                 <Setter Target="RootGrid.Opacity" Value="0.4" />
                                             </VisualState.Setters>

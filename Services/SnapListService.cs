@@ -148,26 +148,40 @@ public sealed class SnapListService : ObservableObject, ISnapListService
 
     public void CopyToClipboard()
     {
-        var text = GetFullContent();
-        var dataPackage = new DataPackage();
-        dataPackage.SetText(text);
-        Clipboard.SetContent(dataPackage);
+        try
+        {
+            var text = GetFullContent();
+            var dataPackage = new DataPackage();
+            dataPackage.SetText(text);
+            Clipboard.SetContent(dataPackage);
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error($"[SnapListService] CopyToClipboard error: {ex.Message}", ex);
+        }
     }
 
     public void SendToNotepad()
     {
-        var lines = GetFormattedLines();
-        var tempFile = Path.Combine(Path.GetTempPath(), $"DirSnap_{Guid.NewGuid():N}.txt");
-
-        // Write with UTF-8 BOM so Notepad detects encoding properly
-        File.WriteAllLines(tempFile, lines, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
-
-        Process.Start(new ProcessStartInfo
+        try
         {
-            FileName = "notepad.exe",
-            Arguments = $"\"{tempFile}\"",
-            UseShellExecute = true
-        });
+            var lines = GetFormattedLines();
+            var tempFile = Path.Combine(Path.GetTempPath(), $"DirSnap_{Guid.NewGuid():N}.txt");
+
+            // Write with UTF-8 BOM so Notepad detects encoding properly
+            File.WriteAllLines(tempFile, lines, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "notepad.exe",
+                Arguments = $"\"{tempFile}\"",
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error($"[SnapListService] SendToNotepad error: {ex.Message}", ex);
+        }
     }
 
     public void ExportToTxt(string filePath)

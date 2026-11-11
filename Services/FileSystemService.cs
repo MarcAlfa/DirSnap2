@@ -81,7 +81,7 @@ public sealed class FileSystemService : IFileSystemService
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[FileSystemService] GetDrives error: {ex.Message}");
+            AppLogger.Error($"[FileSystemService] GetDrives error: {ex.Message}", ex);
         }
 
         return result;
@@ -257,7 +257,7 @@ public sealed class FileSystemService : IFileSystemService
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[FileSystemService] GetTreeChildren error: {ex.Message}");
+            AppLogger.Error($"[FileSystemService] GetTreeChildren error: {ex.Message}", ex);
         }
 
         return result;
@@ -361,7 +361,7 @@ public sealed class FileSystemService : IFileSystemService
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[FileSystemService] OpenInExplorer error: {ex.Message}");
+            AppLogger.Error($"[FileSystemService] OpenInExplorer error: {ex.Message}", ex);
         }
     }
 
@@ -397,7 +397,7 @@ public sealed class FileSystemService : IFileSystemService
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[FileSystemService] OpenInTerminal error: {ex.Message}");
+            AppLogger.Error($"[FileSystemService] OpenInTerminal error: {ex.Message}", ex);
         }
     }
 }

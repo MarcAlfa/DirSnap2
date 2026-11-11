@@ -28,6 +28,7 @@ public sealed class ConfigService : IConfigService
     };
 
     private readonly string _configPath;
+    private readonly string _backupConfigPath;
     private readonly string _exampleConfigPath;
     private readonly object _lock = new();
 
@@ -43,6 +44,7 @@ public sealed class ConfigService : IConfigService
     {
         var root = basePath ?? AppContext.BaseDirectory;
         _configPath = Path.Combine(root, "config.json");
+        _backupConfigPath = Path.Combine(root, "config.json.bak");
         _exampleConfigPath = Path.Combine(root, "config.example.json");
     }
 
@@ -50,9 +52,9 @@ public sealed class ConfigService : IConfigService
     {
         lock (_lock)
         {
-            try
+            if (File.Exists(_configPath))
             {
-                if (File.Exists(_configPath))
+                try
                 {
                     var json = File.ReadAllText(_configPath);
                     var loaded = JsonSerializer.Deserialize<AppConfig>(json, JsonOptions);
@@ -60,10 +62,54 @@ public sealed class ConfigService : IConfigService
                     {
                         Current = loaded;
                         SanitizeConfig();
+
+                        // Keep a valid backup copy if none exists yet
+                        if (!File.Exists(_backupConfigPath))
+                        {
+                            try { File.Copy(_configPath, _backupConfigPath, overwrite: true); } catch { }
+                        }
                         return;
                     }
                 }
+                catch (Exception ex)
+                {
+                    AppLogger.Error($"[ConfigService] Error reading config.json (possibly corrupted): {ex.Message}", ex);
 
+                    // Preserve the corrupted config for user diagnostics instead of deleting/overwriting it
+                    try
+                    {
+                        var dir = Path.GetDirectoryName(_configPath) ?? string.Empty;
+                        var corruptPath = Path.Combine(dir, $"config.corrupted_{DateTime.Now:yyyyMMdd_HHmmss}.json");
+                        File.Copy(_configPath, corruptPath, overwrite: true);
+                        AppLogger.Warn($"[ConfigService] Saved corrupted config file to '{corruptPath}'");
+                    }
+                    catch { }
+
+                    // Try to restore from automatic backup
+                    if (File.Exists(_backupConfigPath))
+                    {
+                        try
+                        {
+                            var bakJson = File.ReadAllText(_backupConfigPath);
+                            var bakLoaded = JsonSerializer.Deserialize<AppConfig>(bakJson, JsonOptions);
+                            if (bakLoaded != null)
+                            {
+                                Current = bakLoaded;
+                                SanitizeConfig();
+                                AppLogger.Info("[ConfigService] Restored configuration from 'config.json.bak'");
+                                return;
+                            }
+                        }
+                        catch (Exception bakEx)
+                        {
+                            AppLogger.Error($"[ConfigService] Failed restoring from backup: {bakEx.Message}", bakEx);
+                        }
+                    }
+                }
+            }
+
+            try
+            {
                 if (File.Exists(_exampleConfigPath))
                 {
                     var json = File.ReadAllText(_exampleConfigPath);
@@ -78,7 +124,7 @@ public sealed class ConfigService : IConfigService
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[ConfigService] Error loading config: {ex.Message}");
+                AppLogger.Error($"[ConfigService] Error loading example config: {ex.Message}", ex);
             }
 
             Current = new AppConfig();
@@ -127,13 +173,30 @@ public sealed class ConfigService : IConfigService
                     Directory.CreateDirectory(dir);
                 }
 
+                // If existing config is non-empty, rotate to backup before overwriting
+                if (File.Exists(_configPath))
+                {
+                    try
+                    {
+                        var fi = new FileInfo(_configPath);
+                        if (fi.Length > 0)
+                        {
+                            File.Copy(_configPath, _backupConfigPath, overwrite: true);
+                        }
+                    }
+                    catch
+                    {
+                        // Ignore backup rotation failure
+                    }
+                }
+
                 var tempFile = Path.Combine(dir ?? string.Empty, $".config_{Guid.NewGuid():N}.tmp");
                 File.WriteAllText(tempFile, json);
                 File.Move(tempFile, _configPath, overwrite: true);
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[ConfigService] Error saving config: {ex.Message}");
+                AppLogger.Error($"[ConfigService] Error saving config: {ex.Message}", ex);
             }
         }
     }

@@ -76,7 +76,7 @@ public static class WindowPlacementService
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[WindowPlacementService] RestoreWindow error: {ex.Message}");
+            AppLogger.Error($"[WindowPlacementService] RestoreWindow error: {ex.Message}", ex);
         }
     }
 
@@ -117,7 +117,7 @@ public static class WindowPlacementService
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[WindowPlacementService] SaveWindow error: {ex.Message}");
+            AppLogger.Error($"[WindowPlacementService] SaveWindow error: {ex.Message}", ex);
         }
     }
 }
