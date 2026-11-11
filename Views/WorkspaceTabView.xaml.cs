@@ -248,45 +248,85 @@ public sealed partial class WorkspaceTabView : UserControl
     {
         if (_isRevertingSelection || ViewModel == null) return;
 
+        // Capture the tab: the user could switch tab while the dialog is awaited
+        var vm = ViewModel;
+
         if (FlatListView.SelectedItem is FSItem item)
         {
-            if (ViewModel.IsEditorDirty && !string.Equals(item.Path, ViewModel.CurrentEditingFilePath, StringComparison.OrdinalIgnoreCase))
+            // Re-selection of the file already in the editor (list rebuilt after refresh,
+            // filter, sort or tab switch): nothing to load, and never reload over edits.
+            if (vm.IsCurrentFile(item.Path))
+                return;
+
+            // A folder (or "..") was selected: the editor is emptied only when it holds no
+            // pending edits. A file being modified simply stays open, without any prompt.
+            if (item.IsDirectory)
+            {
+                if (!vm.IsEditorDirty)
+                {
+                    vm.ClearFileSelection();
+                }
+                return;
+            }
+
+            // Another file was selected: this is what would replace the editor content
+            if (vm.IsEditorDirty)
             {
                 _isRevertingSelection = true;
-                bool proceed = await ViewModel.ConfirmDiscardUnsavedChangesAsync(XamlRoot);
-                _isRevertingSelection = false;
+                bool proceed;
+                try
+                {
+                    proceed = await vm.ConfirmDiscardUnsavedChangesAsync(XamlRoot);
+                }
+                finally
+                {
+                    _isRevertingSelection = false;
+                }
 
                 if (!proceed)
                 {
                     // Revert selection back to current editing file
                     _isRevertingSelection = true;
-                    FlatListView.SelectedItem = ViewModel.FlatItems.FirstOrDefault(x => string.Equals(x.Path, ViewModel.CurrentEditingFilePath, StringComparison.OrdinalIgnoreCase));
-                    _isRevertingSelection = false;
+                    try
+                    {
+                        vm.ReselectCurrentFileInList();
+                        if (ReferenceEquals(vm, ViewModel))
+                        {
+                            FlatListView.SelectedItem = vm.FlatItems.FirstOrDefault(x => string.Equals(x.Path, vm.CurrentEditingFilePath, StringComparison.OrdinalIgnoreCase));
+                        }
+                    }
+                    finally
+                    {
+                        _isRevertingSelection = false;
+                    }
                     return;
                 }
             }
 
-            if (item.Name != ".." && !item.IsDirectory)
-            {
-                ViewModel.SelectFile(item.Path);
-            }
-            else
-            {
-                ViewModel.ClearFileSelection();
-            }
+            vm.SelectFile(item.Path);
         }
     }
 
-    private async void FlatListView_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    private void FlatListView_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
         if (ViewModel?.SelectedItem is not { } item) return;
 
-        if (ViewModel.IsEditorDirty)
+        // Double-click on the file already open: just switch to edit mode, never reload it
+        if (!item.IsDirectory && ViewModel.IsCurrentFile(item.Path))
         {
-            bool proceed = await ViewModel.ConfirmDiscardUnsavedChangesAsync(XamlRoot);
-            if (!proceed) return;
+            if (ViewModel.CanUnlockToEdit)
+            {
+                ViewModel.UnlockEditorCommand.Execute(null);
+            }
+            return;
         }
 
+        // Another file while edits are pending: the first click of this double-click has
+        // already opened the unsaved-changes dialog (FlatListView_SelectionChanged)
+        if (!item.IsDirectory && ViewModel.IsEditorDirty)
+            return;
+
+        // Navigation keeps the open file (and its pending edits): nothing to ask
         if (item.Name == "..")
         {
             ViewModel.GoUpCommand.Execute(null);
@@ -305,8 +345,21 @@ public sealed partial class WorkspaceTabView : UserControl
         }
     }
 
-    private async void FlatListView_KeyDown(object sender, KeyRoutedEventArgs e)
+    public void FocusFilter()
     {
+        FilterTextBox.Focus(FocusState.Keyboard);
+        FilterTextBox.SelectAll();
+    }
+
+    private void FlatListView_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == VirtualKey.Back && ViewModel != null)
+        {
+            ViewModel.GoUpCommand.Execute(null);
+            e.Handled = true;
+            return;
+        }
+
         if (ViewModel?.SelectedItem is not { } item) return;
 
         if (e.Key == VirtualKey.Insert)
@@ -316,21 +369,11 @@ public sealed partial class WorkspaceTabView : UserControl
         }
         else if (e.Key == VirtualKey.Enter)
         {
-            if (ViewModel.IsEditorDirty && (item.IsDirectory || !string.Equals(item.Path, ViewModel.CurrentEditingFilePath, StringComparison.OrdinalIgnoreCase)))
-            {
-                bool proceed = await ViewModel.ConfirmDiscardUnsavedChangesAsync(XamlRoot);
-                if (!proceed)
-                {
-                    e.Handled = true;
-                    return;
-                }
-            }
-
             if (item.Name == "..")
                 ViewModel.GoUpCommand.Execute(null);
             else if (item.IsDirectory)
                 ViewModel.NavigateToCommand.Execute(item.Path);
-            else
+            else if (!ViewModel.IsCurrentFile(item.Path) && !ViewModel.IsEditorDirty)
                 ViewModel.SelectFile(item.Path);
 
             e.Handled = true;
@@ -572,7 +615,8 @@ public sealed partial class WorkspaceTabView : UserControl
             var item = (args.InvokedItem as TreeViewNode)?.Content as FSItem ?? args.InvokedItem as FSItem;
             if (item == null || ViewModel == null) return;
 
-            if (ViewModel.IsEditorDirty && (item.IsDirectory || !string.Equals(item.Path, ViewModel.CurrentEditingFilePath, StringComparison.OrdinalIgnoreCase)))
+            // Folders only navigate (the open file stays); a different file needs the prompt
+            if (!item.IsDirectory && ViewModel.IsEditorDirty && !ViewModel.IsCurrentFile(item.Path))
             {
                 bool proceed = await ViewModel.ConfirmDiscardUnsavedChangesAsync(XamlRoot);
                 if (!proceed) return;
@@ -595,19 +639,13 @@ public sealed partial class WorkspaceTabView : UserControl
         }
     }
 
-    private async void HierarchicalTreeView_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    private void HierarchicalTreeView_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
         try
         {
             var item = (HierarchicalTreeView.SelectedItem as TreeViewNode)?.Content as FSItem ?? HierarchicalTreeView.SelectedItem as FSItem;
             if (item is { IsDirectory: true } && ViewModel != null)
             {
-                if (ViewModel.IsEditorDirty)
-                {
-                    bool proceed = await ViewModel.ConfirmDiscardUnsavedChangesAsync(XamlRoot);
-                    if (!proceed) return;
-                }
-
                 AppLogger.Info($"[HierarchicalTreeView_DoubleTapped] DoubleTapped: {item.Path}");
                 ViewModel.NavigateToInternal(item.Path, recordHistory: true);
                 FolderTreeFlyout.Hide();
@@ -620,12 +658,6 @@ public sealed partial class WorkspaceTabView : UserControl
                 var targetItem = (fe.DataContext as TreeViewNode)?.Content as FSItem ?? fe.DataContext as FSItem;
                 if (targetItem is { IsDirectory: true } && ViewModel != null)
                 {
-                    if (ViewModel.IsEditorDirty)
-                    {
-                        bool proceed = await ViewModel.ConfirmDiscardUnsavedChangesAsync(XamlRoot);
-                        if (!proceed) return;
-                    }
-
                     AppLogger.Info($"[HierarchicalTreeView_DoubleTapped] OriginalSource DoubleTapped: {targetItem.Path}");
                     ViewModel.NavigateToInternal(targetItem.Path, recordHistory: true);
                     FolderTreeFlyout.Hide();
@@ -689,14 +721,14 @@ public sealed partial class WorkspaceTabView : UserControl
         {
             if (sender.SelectedItem is TreeViewNode { Content: FSItem item } && ViewModel != null)
             {
-                if (!item.IsDirectory)
+                if (!item.IsDirectory && !ViewModel.IsEditorDirty)
                 {
                     ViewModel.SelectFile(item.Path);
                 }
             }
             else if (sender.SelectedItem is FSItem directItem && ViewModel != null)
             {
-                if (!directItem.IsDirectory)
+                if (!directItem.IsDirectory && !ViewModel.IsEditorDirty)
                 {
                     ViewModel.SelectFile(directItem.Path);
                 }
@@ -785,10 +817,9 @@ public sealed partial class WorkspaceTabView : UserControl
 
     private void EditorTextBox_TextChanged(object sender, TextChangedEventArgs e)
     {
-        if (ViewModel != null && !ViewModel.IsLoadingFile && !ViewModel.IsEditorLocked && !string.IsNullOrEmpty(ViewModel.CurrentEditingFilePath))
-        {
-            ViewModel.IsEditorDirty = !string.Equals(EditorTextBox.Text, ViewModel.OriginalText, StringComparison.Ordinal);
-        }
+        // The dirty flag is computed by the view model (EditorText is bound with
+        // UpdateSourceTrigger=PropertyChanged) with a newline-insensitive comparison:
+        // TextBox.Text uses lone CR line endings, so comparing it here was always "modified".
         UpdateScrollToTopButtonVisibility();
     }
 

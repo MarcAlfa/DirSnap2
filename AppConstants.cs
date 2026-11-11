@@ -7,9 +7,9 @@ namespace DirSnap2;
 public static class AppConstants
 {
     /// <summary>
-    /// Fixed application version: 0.0.8
+    /// Fixed application version: 0.0.9
     /// </summary>
-    public const string AppVersion = "0.0.8";
+    public const string AppVersion = "0.0.9";
 
     public const string AppName = "DirSnap 2";
     public const string AppTitle = $"{AppName} v{AppVersion}";

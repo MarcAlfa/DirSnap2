@@ -378,19 +378,25 @@ public sealed class FileSystemService : IFileSystemService
 
             if (File.Exists(wtPath))
             {
+                // A trailing backslash would escape the closing quote ("C:\" -> C:"): double it
+                var quotedDir = folderPath.EndsWith('\\') ? folderPath + "\\" : folderPath;
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = wtPath,
-                    Arguments = $"-d \"{folderPath}\"",
+                    Arguments = $"-d \"{quotedDir}\"",
+                    WorkingDirectory = folderPath,
                     UseShellExecute = true
                 });
             }
             else
             {
+                // Start directly in the folder: no path inside a command string, so
+                // apostrophes (Marco's), brackets or $ in folder names cannot break it.
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = "powershell.exe",
-                    Arguments = $"-NoExit -Command \"Set-Location -LiteralPath '{folderPath}'\"",
+                    Arguments = "-NoExit",
+                    WorkingDirectory = folderPath,
                     UseShellExecute = true
                 });
             }

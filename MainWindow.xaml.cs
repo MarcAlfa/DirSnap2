@@ -91,6 +91,141 @@ public sealed partial class MainWindow : Window
 
         // 7. Wire Closing Event
         Closed += MainWindow_Closed;
+
+        // 8. Global keyboard shortcuts
+        RegisterKeyboardShortcuts();
+    }
+
+    // ==================== KEYBOARD SHORTCUTS ====================
+    // Keep ShortcutsView.Groups (the list shown to the user) in sync with this method.
+
+    private void RegisterKeyboardShortcuts()
+    {
+        if (Content is not FrameworkElement root)
+            return;
+
+        // The buttons already describe their shortcut in the tooltip
+        root.KeyboardAcceleratorPlacementMode = KeyboardAcceleratorPlacementMode.Hidden;
+
+        const VirtualKeyModifiers None = VirtualKeyModifiers.None;
+        const VirtualKeyModifiers Ctrl = VirtualKeyModifiers.Control;
+        const VirtualKeyModifiers Alt = VirtualKeyModifiers.Menu;
+
+        void Add(VirtualKey key, VirtualKeyModifiers modifiers, Action action)
+        {
+            var accelerator = new KeyboardAccelerator { Key = key, Modifiers = modifiers };
+            accelerator.Invoked += (_, e) =>
+            {
+                // Shortcuts act on the workspace: ignore them while a dialog is open
+                if (IsContentDialogOpen())
+                    return;
+
+                e.Handled = true;
+                try
+                {
+                    action();
+                }
+                catch (Exception ex)
+                {
+                    AppLogger.Error($"[MainWindow] Shortcut {modifiers}+{key} error: {ex.Message}", ex);
+                }
+            };
+            root.KeyboardAccelerators.Add(accelerator);
+        }
+
+        // Navigation
+        Add(VirtualKey.Left, Alt, () => ViewModel.ActiveTab?.GoBackCommand.Execute(null));
+        Add(VirtualKey.Right, Alt, () => ViewModel.ActiveTab?.GoForwardCommand.Execute(null));
+        Add(VirtualKey.Up, Alt, () => ViewModel.ActiveTab?.GoUpCommand.Execute(null));
+        Add(VirtualKey.F5, None, () => ViewModel.ActiveTab?.RefreshCommand.Execute(null));
+        Add(VirtualKey.L, Ctrl, () =>
+        {
+            AddressTextBox.Focus(FocusState.Keyboard);
+            AddressTextBox.SelectAll();
+        });
+        Add(VirtualKey.F, Ctrl, () => CurrentWorkspaceView.FocusFilter());
+
+        // Tabs
+        Add(VirtualKey.T, Ctrl, () => ViewModel.AddNewTabCommand.Execute(null));
+        Add(VirtualKey.W, Ctrl, () =>
+        {
+            if (ViewModel.ActiveTab is { } tab)
+                _ = CloseTabWithPromptAsync(tab);
+        });
+        Add(VirtualKey.Tab, Ctrl, () => SwitchTab(+1));
+        Add(VirtualKey.Tab, Ctrl | VirtualKeyModifiers.Shift, () => SwitchTab(-1));
+
+        // Editor
+        Add(VirtualKey.S, Ctrl, () => ViewModel.ActiveTab?.SaveEditorFileCommand.Execute(null));
+        Add(VirtualKey.E, Ctrl, () =>
+        {
+            if (ViewModel.ActiveTab is { IsEditAllowed: true } tab)
+                tab.IsEditingEnabled = !tab.IsEditingEnabled;
+        });
+
+        // Help
+        Add(VirtualKey.F1, None, () => _ = ShowShortcutsAsync());
+    }
+
+    private bool IsContentDialogOpen()
+    {
+        try
+        {
+            var xamlRoot = (Content as FrameworkElement)?.XamlRoot;
+            if (xamlRoot == null)
+                return false;
+
+            foreach (var popup in VisualTreeHelper.GetOpenPopupsForXamlRoot(xamlRoot))
+            {
+                if (popup.Child is ContentDialog)
+                    return true;
+            }
+        }
+        catch
+        {
+            // If it cannot be determined, let the shortcut through
+        }
+        return false;
+    }
+
+    private void SwitchTab(int direction)
+    {
+        int count = ViewModel.Tabs.Count;
+        if (count < 2 || ViewModel.ActiveTab == null)
+            return;
+
+        int index = ViewModel.Tabs.IndexOf(ViewModel.ActiveTab);
+        ViewModel.ActiveTab = ViewModel.Tabs[((index + direction) % count + count) % count];
+    }
+
+    private async Task ShowShortcutsAsync()
+    {
+        try
+        {
+            await ShortcutsView.ShowDialogAsync(((FrameworkElement)Content).XamlRoot);
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error($"[MainWindow] Shortcuts dialog error: {ex.Message}", ex);
+        }
+    }
+
+    private async Task CloseTabWithPromptAsync(WorkspaceTabViewModel tab)
+    {
+        try
+        {
+            if (tab.IsEditorDirty)
+            {
+                bool proceed = await tab.ConfirmDiscardUnsavedChangesAsync(((FrameworkElement)Content).XamlRoot);
+                if (!proceed)
+                    return;
+            }
+            ViewModel.CloseTabCommand.Execute(tab);
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error($"[MainWindow] Close tab error: {ex.Message}", ex);
+        }
     }
 
     private void TryApplyMicaBackdrop()
@@ -185,17 +320,11 @@ public sealed partial class MainWindow : Window
         ViewModel.AddNewTabCommand.Execute(null);
     }
 
-    private async void MainTabView_TabCloseRequested(TabView sender, TabViewTabCloseRequestedEventArgs args)
+    private void MainTabView_TabCloseRequested(TabView sender, TabViewTabCloseRequestedEventArgs args)
     {
         if (args.Item is WorkspaceTabViewModel tab)
         {
-            if (tab.IsEditorDirty)
-            {
-                bool proceed = await tab.ConfirmDiscardUnsavedChangesAsync(((FrameworkElement)Content).XamlRoot);
-                if (!proceed)
-                    return;
-            }
-            ViewModel.CloseTabCommand.Execute(tab);
+            _ = CloseTabWithPromptAsync(tab);
         }
     }
 

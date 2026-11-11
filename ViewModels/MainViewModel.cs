@@ -69,7 +69,8 @@ public sealed partial class MainViewModel : ObservableObject
         {
             newValue.PropertyChanged += OnActiveTabPropertyChanged;
             CurrentAddressBarPath = newValue.CurrentPath;
-            newValue.SyncSelectedFile();
+            // The file/selection sync happens in WorkspaceTabView.OnDataContextChanged,
+            // once the view is actually bound to the new tab.
         }
         foreach (var t in Tabs)
         {
@@ -94,14 +95,14 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    public async Task NavigateAddressBar()
+    public void NavigateAddressBar()
     {
         if (ActiveTab != null && !string.IsNullOrWhiteSpace(CurrentAddressBarPath))
         {
             var target = CurrentAddressBarPath.Trim();
             if (Directory.Exists(target))
             {
-                await ActiveTab.NavigateTo(target);
+                ActiveTab.NavigateTo(target);
                 NotifyFavoriteProperties();
                 SaveWorkspace();
             }

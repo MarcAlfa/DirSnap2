@@ -191,8 +191,17 @@ public sealed class ConfigService : IConfigService
                 }
 
                 var tempFile = Path.Combine(dir ?? string.Empty, $".config_{Guid.NewGuid():N}.tmp");
-                File.WriteAllText(tempFile, json);
-                File.Move(tempFile, _configPath, overwrite: true);
+                try
+                {
+                    File.WriteAllText(tempFile, json);
+                    File.Move(tempFile, _configPath, overwrite: true);
+                }
+                catch
+                {
+                    // Do not leave .config_*.tmp files behind when the save fails
+                    try { if (File.Exists(tempFile)) File.Delete(tempFile); } catch { }
+                    throw;
+                }
             }
             catch (Exception ex)
             {

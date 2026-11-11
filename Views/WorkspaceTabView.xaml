@@ -192,7 +192,7 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <TextBox Grid.Column="0" 
+                <TextBox Grid.Column="0" x:Name="FilterTextBox"
                          PlaceholderText="Quick filter (*.ext or text)..."
                          Text="{Binding FilterQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
                     <TextBox.Header>
@@ -433,7 +433,7 @@
                         <!-- Edit / Unlock Toggle (Only visible for text preview/edit; lights up when in edit mode) -->
                         <ToggleButton Style="{StaticResource ToolbarToggleButtonStyle}"
                                       IsChecked="{Binding IsEditingEnabled, Mode=TwoWay}"
-                                      Visibility="{Binding IsPreviewUnlocked, Converter={StaticResource BoolToVisibilityConverter}}"
+                                      Visibility="{Binding IsEditAllowed, Converter={StaticResource BoolToVisibilityConverter}}"
                                       ToolTipService.ToolTip="{Binding EditModeToolTip}">
                             <FontIcon Glyph="&#xE785;" FontSize="12" />
                         </ToggleButton>

@@ -374,6 +374,24 @@ public sealed class SettingsDialog : ContentDialog
         snapPanel.Children.Add(_extCheck);
         rootStack.Children.Add(snapPanel);
 
+        // ==================== KEYBOARD SHORTCUTS ====================
+        // A Flyout (not a second ContentDialog: only one can be open at a time)
+        var shortcutsBtn = new Button
+        {
+            Content = "⌨️ Keyboard Shortcuts…",
+            Margin = new Thickness(8, 10, 0, 0),
+            Padding = new Thickness(14, 6, 14, 6),
+            FontSize = 12
+        };
+        ToolTipService.SetToolTip(shortcutsBtn, "Show all keyboard shortcuts (F1)");
+        var shortcutsFlyout = new Flyout
+        {
+            Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.Top
+        };
+        shortcutsFlyout.Opening += (_, _) => shortcutsFlyout.Content = ShortcutsView.Build();
+        shortcutsBtn.Flyout = shortcutsFlyout;
+        rootStack.Children.Add(shortcutsBtn);
+
         // ==================== 4. ABOUT SECTION ====================
         _aboutHeader = CreateSectionHeader("ℹ️ About");
         rootStack.Children.Add(_aboutHeader);

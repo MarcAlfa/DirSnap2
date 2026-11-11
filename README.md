@@ -5,7 +5,7 @@
 ---
 
 ## 📌 Versioning
-- **Current Version**: `0.0.8`
+- **Current Version**: `0.0.9`
 - **Single Source of Truth**: Defined strictly in `AppConstants.cs` (`AppConstants.AppVersion`). All components, UI titles, export headers, and metadata reference this single constant.
 
 ---
@@ -168,3 +168,22 @@ Replaces the old Lists tab with an intuitive "shopping cart" paradigm:
   - [x] File & Folder List Contrast Fix: Fixed `DetailsForegroundBrush` in `FSItem.cs` so `Size` and `Modified` date text are rendered in clear white (`DarkNormalTextBrush`) under dark mode instead of falling back to a dark/black brush.
   - [x] Single Instance Application: Implemented named system Mutex (`Program.cs`) with `DISABLE_XAML_GENERATED_MAIN`. When launched while already running, DirSnap 2 activates and restores the existing window (`ShowWindow`/`SetForegroundWindow`) and the secondary instance exits immediately without opening a duplicate window.
   - [x] Preview Window Font Size Setting: Added configurable `EditorFontSize` in `AppConfig` and Settings dialog (Appearance panel). Users can adjust the font size specifically for the text editor / markdown preview panel via spin box, direct input, or quick presets (`11`, `12`, `13 (Def)`, `14`, `16`, `18 pt`) with real-time live preview and immediate workspace sync without affecting the rest of the application.
+- [x] **Phase 12: Version 0.0.9 - Data-Loss Fixes, Line Endings, ANSI Encoding & Background Scans**
+  - [x] Version bump to `0.0.9` across `AppConstants.cs`, `DirSnap2.csproj`, and `app.manifest`
+  - [x] Tab Switch No Longer Discards Edits: a file that is unlocked or has unsaved changes is never re-read from disk when its tab becomes active again (`SyncSelectedFile`), which also makes the exit prompt work for dirty files in background tabs.
+  - [x] Selection No Longer Loads Files Behind the Dialog: `SelectedItem` changes only drive the row highlight; files are loaded exclusively by the view after the unsaved-changes prompt. List rebuilds (refresh, filter, sort, settings) no longer reload the open file over pending edits.
+  - [x] Line Endings Preserved on Save: the lone `CR` line endings returned by the WinUI 3 `TextBox` are normalized before writing, and the dirty flag uses a newline-insensitive comparison (undoing an edit clears the `*`). CR-only files are detected and kept as `CR`.
+  - [x] ANSI (Windows-1252) Support: `CodePagesEncodingProvider` is registered, so `€` and typographic quotes in non-UTF-8 files are read and saved correctly.
+  - [x] Save Keeps File Properties: `File.Replace` preserves attributes (hidden), creation time and permissions, with a plain-move fallback for volumes that do not support it.
+  - [x] Lock / Format JSON Consistency: locking a file with pending edits keeps them saveable; Format JSON in read-only mode is a view-only beautify that becomes a pending edit when the file is unlocked.
+  - [x] "Don't Save" Restores the Original Text in the editor instead of leaving the discarded edits on screen.
+  - [x] Failed Folder Scans Clear the List (no stale content under a new path); Back/Forward skip folders that no longer exist.
+  - [x] Background Folder Scans: `ScanDirectory` runs on a worker thread with stale-result protection; the list is swapped with a single `Reset` notification (`BulkObservableCollection`).
+  - [x] Live Folder Updates: the visible tab re-scans its folder every ~2 s (slower on slow folders) and rebuilds the list only when files were added, changed or removed by other programs. Polling keeps no handle open on the folder, so it never blocks renaming/deleting it elsewhere. A read-only preview also follows the file on disk.
+  - [x] "File Changed on Disk" Protection: saving a file that another program modified after it was opened asks to Overwrite, Reload from Disk or Cancel instead of silently overwriting.
+  - [x] Preview-Only for Non-Configured Extensions: the edit toggle is shown only for the extensions enabled in Settings; other text files can be previewed but never modified.
+  - [x] No Needless Prompts: folder navigation keeps the open file and its pending edits, so the unsaved-changes dialog appears only when opening another file, closing the tab or exiting. Nothing is ever saved automatically.
+  - [x] Unencodable Characters: saving a legacy-encoded (ANSI) file refuses characters the encoding cannot store instead of writing `?`.
+  - [x] Selected Folders use the accent color in the list, like selected files.
+  - [x] Keyboard Shortcuts: global accelerators for `F5`, `Alt+Left/Right/Up`, `Ctrl+L` (address bar), `Ctrl+F` (filter), `Ctrl+T/W` and `Ctrl+Tab` (tabs), `Ctrl+S`, `Ctrl+E` (edit mode), `Backspace` (parent folder, in the list) and `F1`. The full list is shown by `F1` and by the *Keyboard Shortcuts* button in Settings (`ShortcutsView`).
+  - [x] Open in Terminal: PowerShell fallback starts through `WorkingDirectory` (paths with apostrophes), Windows Terminal handles drive roots (`C:\`).

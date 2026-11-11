@@ -28,7 +28,7 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
     private List<FSItem> _rawDirectories = new();
     private List<FSItem> _rawFiles = new();
 
-    public ObservableCollection<FSItem> FlatItems { get; } = new();
+    public BulkObservableCollection<FSItem> FlatItems { get; } = new();
 
     [ObservableProperty]
     private string _currentPath = "C:\\";
@@ -56,6 +56,7 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
 
     partial void OnIsActiveTabChanged(bool value)
     {
+        UpdateAutoRefreshTimer();
         OnPropertyChanged(nameof(TabHeaderBackground));
         OnPropertyChanged(nameof(TabHeaderBorderBrush));
         OnPropertyChanged(nameof(TabHeaderFontWeight));
@@ -111,11 +112,13 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsReadOnlyBadgeVisible))]
+    [NotifyPropertyChangedFor(nameof(IsEditAllowed))]
     private bool _hasActiveFile;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsReadOnlyBadgeVisible))]
     [NotifyPropertyChangedFor(nameof(CanFormatJson))]
+    [NotifyPropertyChangedFor(nameof(IsEditAllowed))]
     private bool _isPreviewUnlocked;
 
     [ObservableProperty]
@@ -180,6 +183,16 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
     [ObservableProperty]
     private bool _isMarkdownFile;
 
+    /// <summary>
+    /// Editing is offered only for the extensions enabled in Settings. Any other text file
+    /// can be previewed (after "Unlock Preview") but never modified.
+    /// </summary>
+    public bool IsEditAllowed =>
+        HasActiveFile && IsPreviewUnlocked && !string.IsNullOrEmpty(CurrentEditingFilePath) &&
+        _configService.Current.EditorExtensions.Contains(Path.GetExtension(CurrentEditingFilePath).ToLowerInvariant());
+
+    partial void OnCurrentEditingFilePathChanged(string? value) => OnPropertyChanged(nameof(IsEditAllowed));
+
     public bool IsReadOnlyBadgeVisible => HasActiveFile && IsPreviewUnlocked && IsEditorLocked;
     public bool CanFormatJson => IsJsonFile && IsPreviewUnlocked;
 
@@ -224,6 +237,10 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
         _snapListService = snapListService;
         _configService = configService;
         _configService.ConfigChanged += OnConfigChanged;
+        _dispatcher = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+        // FSItem owns static brushes: make sure they are created on the UI thread,
+        // because folder scans build FSItem instances on a worker thread.
+        System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(FSItem).TypeHandle);
         _editorFontSize = _configService.Current.EditorFontSize > 0 ? _configService.Current.EditorFontSize : 13;
 
         if (initialTabState != null)
@@ -277,6 +294,9 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
 
     public void Dispose()
     {
+        _disposed = true;
+        _scanVersion++;
+        _autoRefreshTimer?.Stop();
         _configService.ConfigChanged -= OnConfigChanged;
     }
 
@@ -307,11 +327,10 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
     {
         EditorFontSize = _configService.Current.EditorFontSize > 0 ? _configService.Current.EditorFontSize : 13;
         Refresh();
-        // Only re-select if the editor does not hold dirty unsaved changes
-        if (!string.IsNullOrEmpty(CurrentEditingFilePath) && !IsEditorDirty)
-        {
-            SelectFile(CurrentEditingFilePath);
-        }
+        OnPropertyChanged(nameof(IsEditAllowed));
+        // Re-evaluates the open file (its extension may have been added/removed in Settings),
+        // unless it is being edited
+        SyncSelectedFile(force: true);
     }
 
     private readonly SemaphoreSlim _unsavedDialogLock = new(1, 1);
@@ -319,7 +338,7 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
     /// <summary>
     /// Checks if there are unsaved changes. If so, prompts the user via a native ContentDialog:
     /// - "Save": saves the file and returns true (or false if saving fails).
-    /// - "Don't Save": discards modifications (IsEditorDirty = false) and returns true.
+    /// - "Don't Save": restores the last loaded/saved text and returns true.
     /// - "Cancel": leaves everything as-is and returns false.
     /// </summary>
     public async Task<bool> ConfirmDiscardUnsavedChangesAsync(XamlRoot? xamlRoot = null)
@@ -354,12 +373,11 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
             var result = await dialog.ShowAsync();
             if (result == ContentDialogResult.Primary)
             {
-                SaveEditorFile();
-                return !IsEditorDirty;
+                return await SaveEditorFileAsync(root);
             }
             else if (result == ContentDialogResult.Secondary)
             {
-                IsEditorDirty = false;
+                DiscardEditorChanges();
                 return true;
             }
             else
@@ -391,19 +409,43 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
             newValue.IsSelected = true;
         }
 
-        if (newValue == null)
-        {
-            // Do not clear file selection if ListView is virtualizing or switching tab context
-            return;
-        }
+        // Selection only drives the row highlight here. Loading a file is always an explicit
+        // SelectFile() call made by the view AFTER the unsaved-changes check: loading from this
+        // setter (fired by the TwoWay ListView binding and by every list rebuild) silently
+        // threw away pending edits.
+    }
 
-        if (newValue.Name == ".." || newValue.IsDirectory)
+    public bool IsCurrentFile(string? path) =>
+        HasActiveFile && !string.IsNullOrEmpty(path) &&
+        string.Equals(path, CurrentEditingFilePath, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Puts the list highlight back on the file shown in the editor (no reload).</summary>
+    public void ReselectCurrentFileInList()
+    {
+        if (string.IsNullOrEmpty(CurrentEditingFilePath))
+            return;
+
+        var matching = FlatItems.FirstOrDefault(x => string.Equals(x.Path, CurrentEditingFilePath, StringComparison.OrdinalIgnoreCase));
+        if (matching != null)
         {
-            ClearFileSelection();
+            if (SelectedItem != matching)
+                SelectedItem = matching;
+            matching.IsSelected = true;
         }
-        else
+    }
+
+    /// <summary>Drops unsaved edits and shows the last loaded/saved text again.</summary>
+    public void DiscardEditorChanges()
+    {
+        IsLoadingFile = true;
+        try
         {
-            SelectFile(newValue.Path);
+            EditorText = OriginalText;
+            IsEditorDirty = false;
+        }
+        finally
+        {
+            IsLoadingFile = false;
         }
     }
 
@@ -440,23 +482,26 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
 
     partial void OnEditorTextChanged(string value)
     {
-        if (IsLoadingFile || IsEditorLocked || string.IsNullOrEmpty(CurrentEditingFilePath))
+        if (IsLoadingFile || string.IsNullOrEmpty(CurrentEditingFilePath))
         {
             IsEditorDirty = false;
             return;
         }
 
-        IsEditorDirty = !string.Equals(value, OriginalText, StringComparison.Ordinal);
+        // While locked the text can only change through the TextBox echoing it back with its
+        // own line endings, or a view-only "Format JSON": neither may set or clear the flag
+        // (a file locked with pending edits must stay dirty).
+        if (IsEditorLocked)
+            return;
+
+        IsEditorDirty = !TextFileService.EqualsIgnoringNewlineStyle(value, OriginalText);
     }
 
+    // Navigating never closes the file shown in the editor (pending edits stay there),
+    // so none of the navigation commands asks about unsaved changes.
     [RelayCommand]
-    public async Task NavigateTo(string path)
+    public void NavigateTo(string path)
     {
-        if (IsEditorDirty)
-        {
-            if (!await ConfirmDiscardUnsavedChangesAsync())
-                return;
-        }
         NavigateToInternal(path, recordHistory: true);
     }
 
@@ -485,80 +530,222 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
     }
 
     [RelayCommand]
-    public async Task GoBack()
+    public void GoBack()
     {
         if (_backHistory.Count == 0) return;
 
-        if (IsEditorDirty)
-        {
-            if (!await ConfirmDiscardUnsavedChangesAsync())
-                return;
-        }
-
-        var prev = _backHistory.Pop();
-        _forwardHistory.Push(CurrentPath);
-
-        CanGoBack = _backHistory.Count > 0;
-        CanGoForward = _forwardHistory.Count > 0;
-
-        CurrentPath = prev;
-        UpdateTabTitle();
-        CanGoUp = Path.GetDirectoryName(CurrentPath) != null;
-        Refresh();
+        NavigateHistory(_backHistory, _forwardHistory);
     }
 
     [RelayCommand]
-    public async Task GoForward()
+    public void GoForward()
     {
         if (_forwardHistory.Count == 0) return;
 
-        if (IsEditorDirty)
+        NavigateHistory(_forwardHistory, _backHistory);
+    }
+
+    private void NavigateHistory(Stack<string> from, Stack<string> to)
+    {
+        // Skip history entries whose folder has been deleted/renamed/unplugged meanwhile
+        string? target = null;
+        int skipped = 0;
+        while (from.Count > 0)
         {
-            if (!await ConfirmDiscardUnsavedChangesAsync())
-                return;
+            var candidate = from.Pop();
+            if (Directory.Exists(candidate))
+            {
+                target = candidate;
+                break;
+            }
+            skipped++;
         }
 
-        var next = _forwardHistory.Pop();
-        _backHistory.Push(CurrentPath);
+        if (target != null)
+        {
+            to.Push(CurrentPath);
+            CurrentPath = target;
+            UpdateTabTitle();
+            CanGoUp = Path.GetDirectoryName(CurrentPath) != null;
+            Refresh();
+        }
 
         CanGoBack = _backHistory.Count > 0;
         CanGoForward = _forwardHistory.Count > 0;
 
-        CurrentPath = next;
-        UpdateTabTitle();
-        CanGoUp = Path.GetDirectoryName(CurrentPath) != null;
-        Refresh();
+        if (target == null)
+            StatusMessage = "That folder no longer exists";
+        else if (skipped > 0)
+            _pendingStatusNote = $"skipped {skipped} folder(s) that no longer exist";
     }
 
     [RelayCommand]
-    public async Task GoUp()
+    public void GoUp()
     {
         var parent = Path.GetDirectoryName(CurrentPath);
         if (!string.IsNullOrEmpty(parent) && Directory.Exists(parent))
         {
-            if (IsEditorDirty)
-            {
-                if (!await ConfirmDiscardUnsavedChangesAsync())
-                    return;
-            }
             NavigateToInternal(parent, recordHistory: true);
         }
     }
 
+    private readonly Microsoft.UI.Dispatching.DispatcherQueue? _dispatcher;
+    private int _scanVersion;
+    private bool _disposed;
+    private string? _pendingStatusNote;
+
+    private int _scansInFlight;
+    private string? _lastScanError;
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _autoRefreshTimer;
+    private static readonly TimeSpan AutoRefreshMinInterval = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan AutoRefreshMaxInterval = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Rescans the current folder. The scan runs on a worker thread (slow/network drives and
+    /// huge folders no longer freeze the window); only the latest request is applied.
+    /// </summary>
     [RelayCommand]
     public void Refresh()
     {
+        _ = RefreshAsync(auto: false);
+    }
+
+    /// <summary>
+    /// Live update: while this tab is the visible one its folder is re-scanned every couple of
+    /// seconds, and the list is rebuilt only when something actually changed on disk.
+    /// Polling (instead of a FileSystemWatcher) keeps no handle open on the folder, so it never
+    /// blocks renaming/deleting it or its parents from other programs, and it also works on
+    /// network shares.
+    /// </summary>
+    private void UpdateAutoRefreshTimer()
+    {
+        if (_dispatcher == null)
+            return;
+
+        if (IsActiveTab && !_disposed)
+        {
+            if (_autoRefreshTimer == null)
+            {
+                _autoRefreshTimer = _dispatcher.CreateTimer();
+                _autoRefreshTimer.Interval = AutoRefreshMinInterval;
+                _autoRefreshTimer.Tick += (_, _) => OnAutoRefreshTick();
+            }
+            _autoRefreshTimer.Start();
+
+            // Catch up at once with whatever changed while the tab was in the background
+            OnAutoRefreshTick();
+        }
+        else
+        {
+            _autoRefreshTimer?.Stop();
+        }
+    }
+
+    private void OnAutoRefreshTick()
+    {
+        if (_disposed || !IsActiveTab)
+            return;
+
         try
         {
-            var allowedExt = _configService.Current.EditorExtensions;
-            var (dirs, files, error) = _fileSystemService.ScanDirectory(CurrentPath, ShowAll, allowedExt);
+            ReloadOpenFileIfChangedOnDisk();
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Warn($"[AutoRefresh] Open file check failed: {ex.Message}");
+        }
 
-            if (error != null)
+        if (_scansInFlight == 0)
+        {
+            _ = RefreshAsync(auto: true);
+        }
+    }
+
+    private async Task RefreshAsync(bool auto)
+    {
+        // An automatic scan never supersedes a manual one; a manual one supersedes everything
+        int version = auto ? _scanVersion : ++_scanVersion;
+        string path = CurrentPath;
+        bool showAll = ShowAll;
+        var allowedExt = _configService.Current.EditorExtensions.ToList();
+
+        List<FSItem> dirs = new();
+        List<FSItem> files = new();
+        string? error;
+
+        _scansInFlight++;
+        var stopwatch = Stopwatch.StartNew();
+        try
+        {
+            (dirs, files, error) = await Task.Run(() => _fileSystemService.ScanDirectory(path, showAll, allowedExt));
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+        stopwatch.Stop();
+
+        void Finish()
+        {
+            _scansInFlight--;
+
+            if (auto && _autoRefreshTimer != null)
             {
-                StatusMessage = $"Error: {error}";
-                return;
+                // Slow folders (network, huge) are polled less often: ~10x the scan time
+                var wanted = TimeSpan.FromMilliseconds(stopwatch.ElapsedMilliseconds * 10);
+                if (wanted < AutoRefreshMinInterval) wanted = AutoRefreshMinInterval;
+                if (wanted > AutoRefreshMaxInterval) wanted = AutoRefreshMaxInterval;
+                _autoRefreshTimer.Interval = wanted;
             }
 
+            ApplyScanResult(version, dirs, files, error, auto);
+        }
+
+        if (_dispatcher != null && !_dispatcher.HasThreadAccess)
+        {
+            _dispatcher.TryEnqueue(Finish);
+        }
+        else
+        {
+            Finish();
+        }
+    }
+
+    private static bool SameEntries(List<FSItem> a, List<FSItem> b)
+    {
+        if (a.Count != b.Count)
+            return false;
+
+        for (int i = 0; i < a.Count; i++)
+        {
+            var x = a[i];
+            var y = b[i];
+            if (x.Size != y.Size ||
+                x.ModifiedTime != y.ModifiedTime ||
+                x.IsShowAllOnly != y.IsShowAllOnly ||
+                !string.Equals(x.Path, y.Path, StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void ApplyScanResult(int version, List<FSItem> dirs, List<FSItem> files, string? error, bool auto)
+    {
+        // A newer scan was requested meanwhile (or the tab was closed): drop this one
+        if (_disposed || version != _scanVersion)
+            return;
+
+        // Automatic scan with nothing new on disk: leave list, selection and scroll alone
+        if (auto && error == _lastScanError && SameEntries(_rawDirectories, dirs) && SameEntries(_rawFiles, files))
+            return;
+
+        try
+        {
+            // On failure the lists are empty (or partial): never keep showing the previous
+            // folder's content under the new path.
+            _lastScanError = error;
             _rawDirectories = dirs;
             _rawFiles = files;
             FoldersCount = dirs.Count;
@@ -575,7 +762,19 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
             foreach (var f in files) totalBytes += f.Size;
             string sizeStr = totalBytes > 0 ? $", {FSItem.FormatSize(totalBytes)}" : string.Empty;
             FolderSummaryText = $"{dirs.Count} folders, {files.Count} files{sizeStr}";
-            StatusMessage = FolderSummaryText;
+
+            // A background update must not wipe a message the user is reading ("Saved ...")
+            if (!auto || error != null)
+            {
+                StatusMessage = error != null ? $"Error: {error}" : FolderSummaryText;
+            }
+
+            if (_pendingStatusNote != null)
+            {
+                // Shown here because the scan result would otherwise overwrite it at once
+                StatusMessage += $" ({_pendingStatusNote})";
+                _pendingStatusNote = null;
+            }
         }
         catch (Exception ex)
         {
@@ -591,15 +790,14 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
         var all = filteredDirs.Concat(filteredFiles);
         var sorted = _fileSystemService.SortItems(all, SortColumn, SortDescending);
 
-        FlatItems.Clear();
-
+        var rows = new List<FSItem>();
         int rowIndex = 0;
 
         // Add ".." entry at the top if we can navigate up
         var parent = Path.GetDirectoryName(CurrentPath);
         if (!string.IsNullOrEmpty(parent))
         {
-            FlatItems.Add(new FSItem
+            rows.Add(new FSItem
             {
                 Name = "..",
                 Path = parent,
@@ -613,20 +811,27 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
         foreach (var item in sorted)
         {
             item.IsEvenRow = (rowIndex++ % 2 == 0);
-            FlatItems.Add(item);
+            rows.Add(item);
         }
 
-        if (!string.IsNullOrEmpty(CurrentEditingFilePath))
+        // The rebuild clears the ListView selection: remember a selected folder to restore it
+        var selectedFolderPath = SelectedItem is { IsDirectory: true } sel ? sel.Path : null;
+        var selectedWasParentRow = SelectedItem?.Name == "..";
+
+        // One Reset notification instead of one per row
+        FlatItems.ReplaceAll(rows);
+
+        var folderRow = selectedFolderPath == null
+            ? null
+            : rows.FirstOrDefault(x => x.IsDirectory && (x.Name == "..") == selectedWasParentRow &&
+                                       string.Equals(x.Path, selectedFolderPath, StringComparison.OrdinalIgnoreCase));
+        if (folderRow != null)
         {
-            var matching = FlatItems.FirstOrDefault(x => string.Equals(x.Path, CurrentEditingFilePath, StringComparison.OrdinalIgnoreCase));
-            if (matching != null)
-            {
-                if (SelectedItem != matching)
-                {
-                    SelectedItem = matching;
-                }
-                matching.IsSelected = true;
-            }
+            SelectedItem = folderRow;
+        }
+        else
+        {
+            ReselectCurrentFileInList();
         }
     }
 
@@ -643,8 +848,8 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
             SortDescending = false;
         }
 
+        // Per-tab sort is persisted with the workspace (MainViewModel.SaveWorkspace)
         ApplyFilterAndSort();
-        _configService.Save();
     }
 
     // ==================== SNAP LIST ACTIONS ====================
@@ -832,10 +1037,12 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
                 }
                 _loadedEncoding = result.Encoding;
                 _loadedNewline = result.Newline;
+                _loadedStamp = ReadStamp(CurrentEditingFilePath);
+                _pendingStamp = null;
                 EditorHasBom = result.HasBom;
 
                 EditorEncodingName = result.HasBom ? "UTF-8 BOM" : result.Encoding.EncodingName;
-                EditorNewlineName = result.Newline == "\r\n" ? "CRLF" : "LF";
+                EditorNewlineName = TextFileService.GetNewlineDisplayName(result.Newline);
 
                 IsPreviewUnlocked = true;
                 RequiresPreviewUnlock = false;
@@ -894,11 +1101,8 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
 
     public void ClearFileSelection()
     {
-        if (SelectedItem != null)
-        {
-            SelectedItem.IsSelected = false;
-        }
-
+        // The row highlight (accent text) follows SelectedItem and is handled in
+        // OnSelectedItemChanged: do not reset it here, or a selected folder loses it.
         IsLoadingFile = true;
         try
         {
@@ -925,14 +1129,87 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
         }
     }
 
+    /// <summary>Last write time + size of the file as it was when loaded/saved by this tab.</summary>
+    private readonly record struct FileStamp(DateTime WriteUtc, long Length);
+
+    private FileStamp? _loadedStamp;
+    private FileStamp? _pendingStamp;
+
+    private static FileStamp? ReadStamp(string? path)
+    {
+        if (string.IsNullOrEmpty(path))
+            return null;
+
+        try
+        {
+            var fi = new FileInfo(path);
+            return fi.Exists ? new FileStamp(fi.LastWriteTimeUtc, fi.Length) : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Read-only preview of a file that another program has modified: show the new content.
+    /// Never touches a file that is unlocked for editing or has pending edits.
+    /// </summary>
+    private void ReloadOpenFileIfChangedOnDisk()
+    {
+        if (!HasActiveFile || !IsPreviewUnlocked || IsEditorDirty || !IsEditorLocked ||
+            !IsEditAllowed || _loadedStamp is not { } loaded)
+        {
+            return;
+        }
+
+        if (ReadStamp(CurrentEditingFilePath) is not { } onDisk || onDisk == loaded)
+        {
+            _pendingStamp = null;
+            return;
+        }
+
+        // Wait until the file looks the same on two checks in a row: it may still be being written
+        if (_pendingStamp != onDisk)
+        {
+            _pendingStamp = onDisk;
+            return;
+        }
+
+        _pendingStamp = null;
+        SelectFile(CurrentEditingFilePath!);
+    }
+
     public void OpenFile(string filePath)
     {
         SelectFile(filePath);
     }
 
-    public void SyncSelectedFile()
+    /// <summary>
+    /// Called when this tab becomes the visible one. Re-reads the file from disk only when
+    /// that is harmless; a file being edited (unlocked or with unsaved changes) is left
+    /// exactly as it is, so switching tabs never discards edits.
+    /// </summary>
+    public void SyncSelectedFile(bool force = false)
     {
-        if (!string.IsNullOrEmpty(CurrentEditingFilePath) && File.Exists(CurrentEditingFilePath))
+        if (string.IsNullOrEmpty(CurrentEditingFilePath))
+            return;
+
+        if (IsEditorDirty || !IsEditorLocked)
+        {
+            ReselectCurrentFileInList();
+            return;
+        }
+
+        // Preview already up to date with the disk: keep it as it is
+        if (!force && IsPreviewUnlocked && _loadedStamp is { } loaded &&
+            ReadStamp(CurrentEditingFilePath) is { } onDisk && onDisk == loaded)
+        {
+            ReselectCurrentFileInList();
+            return;
+        }
+
+        if (File.Exists(CurrentEditingFilePath))
         {
             SelectFile(CurrentEditingFilePath);
         }
@@ -963,10 +1240,12 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
             }
             _loadedEncoding = result.Encoding;
             _loadedNewline = result.Newline;
+            _loadedStamp = ReadStamp(CurrentEditingFilePath);
+            _pendingStamp = null;
             EditorHasBom = result.HasBom;
 
             EditorEncodingName = result.HasBom ? "UTF-8 BOM" : result.Encoding.EncodingName;
-            EditorNewlineName = result.Newline == "\r\n" ? "CRLF" : "LF";
+            EditorNewlineName = TextFileService.GetNewlineDisplayName(result.Newline);
 
             var ext = Path.GetExtension(CurrentEditingFilePath).ToLowerInvariant();
             IsJsonFile = ext == ".json";
@@ -994,8 +1273,17 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
         if (!HasActiveFile || !IsPreviewUnlocked)
             return;
 
+        if (!IsEditAllowed)
+        {
+            StatusMessage = "This file type is preview-only. Add its extension in Settings to edit it.";
+            OnPropertyChanged(nameof(IsEditingEnabled));
+            return;
+        }
+
         IsEditorLocked = false;
         CanUnlockToEdit = false;
+        // Text changed while read-only (Format JSON) becomes a pending edit once editable
+        IsEditorDirty = !TextFileService.EqualsIgnoringNewlineStyle(EditorText, OriginalText);
         StatusMessage = $"Editing enabled for '{CurrentEditingFileName}'";
     }
 
@@ -1006,31 +1294,93 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
             return;
 
         IsEditorLocked = true;
-        StatusMessage = $"Locked '{CurrentEditingFileName}' (read-only)";
+        StatusMessage = IsEditorDirty
+            ? $"Locked '{CurrentEditingFileName}' (read-only) - unsaved changes can still be saved"
+            : $"Locked '{CurrentEditingFileName}' (read-only)";
     }
 
     [RelayCommand]
-    public void SaveEditorFile()
+    public Task SaveEditorFile() => SaveEditorFileAsync();
+
+    /// <summary>Saves the editor content. Returns true only when the file was written.</summary>
+    public async Task<bool> SaveEditorFileAsync(XamlRoot? xamlRoot = null)
     {
         if (string.IsNullOrWhiteSpace(CurrentEditingFilePath))
-            return;
+            return false;
 
-        if (IsEditorLocked)
+        // Locking a file with pending edits must not trap them: Save stays available
+        if (IsEditorLocked && !IsEditorDirty)
         {
             StatusMessage = "File is locked in read-only mode. Click 'Unlock to Edit' to enable saving.";
-            return;
+            return false;
+        }
+
+        // Another program changed the file after it was loaded here: never overwrite silently
+        if (_loadedStamp is { } loaded && ReadStamp(CurrentEditingFilePath) is { } onDisk && onDisk != loaded)
+        {
+            var choice = await AskFileChangedOnDiskAsync(xamlRoot);
+            if (choice == ContentDialogResult.Secondary)
+            {
+                // Explicit choice: drop my edits and take the version on disk
+                SelectFile(CurrentEditingFilePath);
+                StatusMessage = $"Reloaded '{CurrentEditingFileName}' from disk";
+                return false;
+            }
+            if (choice != ContentDialogResult.Primary)
+            {
+                StatusMessage = $"Not saved: '{CurrentEditingFileName}' was changed on disk by another program";
+                return false;
+            }
         }
 
         try
         {
             _textFileService.WriteText(CurrentEditingFilePath, EditorText, _loadedEncoding, _loadedNewline, EditorHasBom);
-            OriginalText = EditorText;
+            OriginalText = TextFileService.NormalizeNewlines(EditorText);
             IsEditorDirty = false;
+            _loadedStamp = ReadStamp(CurrentEditingFilePath);
+            _pendingStamp = null;
+            if (_loadedStamp is { } saved)
+            {
+                CurrentEditingFileSizeText = FSItem.FormatSize(saved.Length);
+            }
             StatusMessage = $"Saved '{CurrentEditingFileName}'";
+            return true;
         }
         catch (Exception ex)
         {
             StatusMessage = $"Error saving: {ex.Message}";
+            return false;
+        }
+    }
+
+    private async Task<ContentDialogResult> AskFileChangedOnDiskAsync(XamlRoot? xamlRoot)
+    {
+        var root = xamlRoot ?? App.MainAppWindow?.Content?.XamlRoot;
+        if (root == null)
+            return ContentDialogResult.None;
+
+        try
+        {
+            var dialog = new ContentDialog
+            {
+                Title = "File Changed on Disk",
+                Content = $"'{CurrentEditingFileName}' was modified by another program after you opened it.\n\n" +
+                          "Overwrite it with your version, or reload it from disk and lose your edits?",
+                PrimaryButtonText = "Overwrite",
+                SecondaryButtonText = "Reload from Disk",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Close,
+                XamlRoot = root,
+                RequestedTheme = ThemeService.ActiveTheme
+            };
+            return await dialog.ShowAsync();
+        }
+        catch (Exception ex)
+        {
+            // Typically another dialog is already open: do not save behind the user's back
+            AppLogger.Error("[AskFileChangedOnDiskAsync] Error showing dialog", ex);
+            return ContentDialogResult.None;
         }
     }
 
@@ -1050,8 +1400,16 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
         try
         {
             EditorText = _textFileService.FormatJson(EditorText);
-            IsEditorDirty = !string.Equals(EditorText, OriginalText, StringComparison.Ordinal);
-            StatusMessage = "JSON formatted successfully";
+            if (IsEditorLocked)
+            {
+                // Read-only: formatting is just a nicer view, nothing to save until unlocked
+                StatusMessage = "JSON formatted for viewing (unlock to edit and save it)";
+            }
+            else
+            {
+                IsEditorDirty = !TextFileService.EqualsIgnoringNewlineStyle(EditorText, OriginalText);
+                StatusMessage = "JSON formatted successfully";
+            }
         }
         catch (Exception ex)
         {
