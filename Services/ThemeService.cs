@@ -90,17 +90,20 @@ public sealed class ThemeService : IThemeService
         UpdateBrush(resources, "AppAccentHoverBrush", colors.Hover);
         UpdateBrush(resources, "AppAccentSubtleBrush", colors.Subtle);
 
-        // WinUI 3 control & accent overrides
-        try { resources["SystemAccentColor"] = colors.Primary; } catch { }
-        UpdateBrush(resources, "SystemControlHighlightAccentBrush", colors.Primary);
-        UpdateBrush(resources, "SystemControlHighlightAltAccentBrush", colors.Hover);
-
         UpdateBrush(resources, "AccentButtonBackground", colors.Primary);
         UpdateBrush(resources, "AccentButtonBackgroundPointerOver", colors.Hover);
         UpdateBrush(resources, "AccentButtonBackgroundPressed", colors.Hover);
         UpdateBrush(resources, "AccentButtonForeground", Colors.White);
         UpdateBrush(resources, "AccentButtonForegroundPointerOver", Colors.White);
         UpdateBrush(resources, "AccentButtonForegroundPressed", Colors.White);
+
+        // CheckBox and RadioButton glyph / fill overrides
+        UpdateBrush(resources, "CheckBoxCheckBackgroundFillChecked", colors.Primary);
+        UpdateBrush(resources, "CheckBoxCheckBackgroundFillCheckedPointerOver", colors.Hover);
+        UpdateBrush(resources, "CheckBoxCheckBackgroundFillCheckedPressed", colors.Hover);
+        UpdateBrush(resources, "RadioButtonCheckGlyphFillChecked", colors.Primary);
+        UpdateBrush(resources, "RadioButtonCheckGlyphFillCheckedPointerOver", colors.Hover);
+        UpdateBrush(resources, "RadioButtonCheckGlyphFillCheckedPressed", colors.Hover);
 
         // TabView active tab accent highlights
         UpdateBrush(resources, "TabViewItemHeaderBackgroundSelected", colors.Subtle);
@@ -123,9 +126,12 @@ public sealed class ThemeService : IThemeService
                         UpdateBrush(themeDict, "AccentButtonBackgroundPointerOver", colors.Hover);
                         UpdateBrush(themeDict, "AccentButtonBackgroundPressed", colors.Hover);
                         UpdateBrush(themeDict, "AccentButtonForeground", Colors.White);
-                        try { themeDict["SystemAccentColor"] = colors.Primary; } catch { }
-                        UpdateBrush(themeDict, "SystemControlHighlightAccentBrush", colors.Primary);
-                        UpdateBrush(themeDict, "SystemControlHighlightAltAccentBrush", colors.Hover);
+                        UpdateBrush(themeDict, "CheckBoxCheckBackgroundFillChecked", colors.Primary);
+                        UpdateBrush(themeDict, "CheckBoxCheckBackgroundFillCheckedPointerOver", colors.Hover);
+                        UpdateBrush(themeDict, "CheckBoxCheckBackgroundFillCheckedPressed", colors.Hover);
+                        UpdateBrush(themeDict, "RadioButtonCheckGlyphFillChecked", colors.Primary);
+                        UpdateBrush(themeDict, "RadioButtonCheckGlyphFillCheckedPointerOver", colors.Hover);
+                        UpdateBrush(themeDict, "RadioButtonCheckGlyphFillCheckedPressed", colors.Hover);
                         UpdateBrush(themeDict, "TabViewItemHeaderBackgroundSelected", colors.Subtle);
                         UpdateBrush(themeDict, "TabViewItemHeaderForegroundSelected", colors.Primary);
                         UpdateBrush(themeDict, "TabViewItemStrokeSelected", colors.Primary);
@@ -143,14 +149,9 @@ public sealed class ThemeService : IThemeService
     {
         try
         {
-            if (resources.TryGetValue(key, out var existing) && existing is SolidColorBrush brush)
-            {
-                brush.Color = color;
-            }
-            else
-            {
-                resources[key] = new SolidColorBrush(color);
-            }
+            // ALWAYS assign a new SolidColorBrush instance to avoid mutating
+            // shared system brushes (e.g. TextFillColorPrimaryBrush) in XamlControlsResources
+            resources[key] = new SolidColorBrush(color);
         }
         catch (Exception ex)
         {

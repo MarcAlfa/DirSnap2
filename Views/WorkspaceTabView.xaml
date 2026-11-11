@@ -139,6 +139,7 @@
                                                           Foreground="{Binding Content.GlyphBrush}" />
                                                 <TextBlock Text="{Binding Content.Name}" 
                                                            FontWeight="{Binding Content.TreeItemFontWeight}"
+                                                           Foreground="{Binding Content.TreeItemForegroundBrush}"
                                                            FontSize="12" TextTrimming="CharacterEllipsis" />
                                             </StackPanel>
 
@@ -253,6 +254,9 @@
                         <StaticResource x:Key="ListViewItemBackgroundSelectedPointerOver" ResourceKey="AppAccentSubtleBrush" />
                         <StaticResource x:Key="ListViewItemBackgroundSelectedPressed" ResourceKey="AppAccentSubtleBrush" />
                         <StaticResource x:Key="ListViewItemStrokeSelected" ResourceKey="AppAccentBrush" />
+                        <StaticResource x:Key="ListViewItemForegroundSelected" ResourceKey="AppAccentBrush" />
+                        <StaticResource x:Key="ListViewItemForegroundSelectedPointerOver" ResourceKey="AppAccentBrush" />
+                        <StaticResource x:Key="ListViewItemForegroundSelectedPressed" ResourceKey="AppAccentBrush" />
                     </ListView.Resources>
                     <ListView.ItemContainerStyle>
                         <Style TargetType="ListViewItem">
@@ -353,9 +357,9 @@
                 </ListView>
             </Grid>
 
-            <!-- Bottom Left Info Bar -->
+            <!-- Bottom Left Info Bar: Always shows folder totals -->
             <Border Grid.Row="4" Background="{ThemeResource AppBackgroundBrush}" BorderBrush="{ThemeResource AppBorderBrush}" BorderThickness="0,1,0,0" Padding="8,4">
-                <TextBlock Text="{Binding StatusMessage}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                <TextBlock Text="{Binding FolderSummaryText}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
             </Border>
         </Grid>
 
@@ -442,11 +446,10 @@
                                     <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="#28808080" />
                                     <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="#40808080" />
                                     <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPressed" Color="#50808080" />
-                                    <SolidColorBrush x:Key="ToggleButtonForegroundChecked" Color="{ThemeResource TextFillColorPrimaryBrush}" />
-                                    <SolidColorBrush x:Key="ToggleButtonBorderBrushChecked" Color="{ThemeResource AppBorderBrush}" />
+                                    <SolidColorBrush x:Key="ToggleButtonBorderBrushChecked" Color="#40808080" />
                                 </ResourceDictionary>
                             </ToggleButton.Resources>
-                            <FontIcon Glyph="&#xE89B;" FontSize="12" />
+                            <FontIcon Glyph="&#xEE43;" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
                         </ToggleButton>
 
                         <!-- Save Button (Only visible after an edit) -->
@@ -474,18 +477,19 @@
                     <TextBlock Text="Select a file from the list or tree to preview or edit." FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" />
                 </StackPanel>
 
-                <!-- State 2: Non-configured file pending unlock -->
+                <!-- State 2: Non-configured file pending unlock / Binary file notice -->
                 <Border VerticalAlignment="Center" HorizontalAlignment="Center"
                         Background="{ThemeResource AppBackgroundBrush}" BorderBrush="{ThemeResource AppBorderBrush}" BorderThickness="1"
                         CornerRadius="8" Padding="28,20" MaxWidth="440"
                         Visibility="{Binding RequiresPreviewUnlock, Converter={StaticResource BoolToVisibilityConverter}}">
                     <StackPanel Spacing="12" HorizontalAlignment="Center">
-                        <FontIcon Glyph="&#xE890;" FontSize="38" Foreground="{ThemeResource AppAccentBrush}" HorizontalAlignment="Center" />
+                        <FontIcon Glyph="{Binding PreviewNoticeGlyph}" FontSize="38" Foreground="{ThemeResource AppAccentBrush}" HorizontalAlignment="Center" />
                         <TextBlock Text="{Binding CurrentEditingFileName}" FontSize="15" FontWeight="SemiBold" HorizontalAlignment="Center" TextWrapping="Wrap" />
                         <TextBlock Text="{Binding CurrentEditingFileSizeText}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" />
-                        <TextBlock Text="This file type is not in your configured fast-preview list. Unlock preview to inspect text content (supported up to 5MB)."
+                        <TextBlock Text="{Binding PreviewNoticeText}"
                                    FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" TextAlignment="Center" />
                         <Button Command="{Binding UnlockPreviewCommand}"
+                                Visibility="{Binding CanUnlockPreview, Converter={StaticResource BoolToVisibilityConverter}}"
                                 Style="{StaticResource AppAccentButtonStyle}"
                                 HorizontalAlignment="Center" Margin="0,6,0,0" Padding="16,6">
                             <StackPanel Orientation="Horizontal" Spacing="6">
@@ -504,6 +508,7 @@
                               Visibility="Collapsed">
                     <RichTextBlock x:Name="MarkdownRichTextBlock"
                                    IsTextSelectionEnabled="True"
+                                   TextWrapping="{Binding EditorTextWrapping}"
                                    FontFamily="Consolas, Cascadia Code, Courier New"
                                    FontSize="13" />
                 </ScrollViewer>
@@ -516,6 +521,7 @@
                          AcceptsReturn="True"
                          FontFamily="Consolas, Cascadia Code, Courier New"
                          FontSize="13"
+                         Foreground="{ThemeResource TextFillColorPrimaryBrush}"
                          Padding="12"
                          BorderThickness="0"
                          Background="Transparent"

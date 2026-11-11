@@ -119,6 +119,15 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
     private bool _requiresPreviewUnlock;
 
     [ObservableProperty]
+    private bool _canUnlockPreview;
+
+    [ObservableProperty]
+    private string _previewNoticeText = string.Empty;
+
+    [ObservableProperty]
+    private string _previewNoticeGlyph = "\uE890";
+
+    [ObservableProperty]
     private string _editorText = string.Empty;
 
     [ObservableProperty]
@@ -147,6 +156,9 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _editorWrap = true;
+
+    [ObservableProperty]
+    private string _folderSummaryText = "0 folders, 0 files";
 
     [ObservableProperty]
     private string _statusMessage = "Ready";
@@ -268,7 +280,15 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
 
     partial void OnFoldersCountChanged(int value) => OnPropertyChanged(nameof(FoldersCountText));
     partial void OnFilesCountChanged(int value) => OnPropertyChanged(nameof(FilesCountText));
-    partial void OnEditorWrapChanged(bool value) => OnPropertyChanged(nameof(EditorTextWrapping));
+    partial void OnEditorWrapChanged(bool value)
+    {
+        OnPropertyChanged(nameof(EditorTextWrapping));
+        if (ConfigService?.Current != null)
+        {
+            ConfigService.Current.EditorWrap = value;
+            ConfigService.Save();
+        }
+    }
 
     partial void OnFilterQueryChanged(string value)
     {
@@ -388,7 +408,11 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
                 TreeSyncRequested?.Invoke(CurrentPath);
             }
 
-            StatusMessage = $"{dirs.Count} folders, {files.Count} files";
+            long totalBytes = 0;
+            foreach (var f in files) totalBytes += f.Size;
+            string sizeStr = totalBytes > 0 ? $", {FSItem.FormatSize(totalBytes)}" : string.Empty;
+            FolderSummaryText = $"{dirs.Count} folders, {files.Count} files{sizeStr}";
+            StatusMessage = FolderSummaryText;
         }
         catch (Exception ex)
         {
@@ -534,6 +558,61 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
 
     // ==================== EDITOR & PREVIEW ACTIONS ====================
 
+    private static readonly HashSet<string> BinaryExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        // Audio
+        ".wav", ".mp3", ".flac", ".ogg", ".aac", ".m4a", ".wma", ".aiff", ".aif", ".alac", ".opus", 
+        ".mid", ".midi", ".ape", ".ac3", ".dts", ".mka",
+        // Video
+        ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v", ".mpg", ".mpeg", ".3gp", 
+        ".ts", ".vob", ".ogv",
+        // Images
+        ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".ico", ".tiff", ".tif", ".psd", ".raw", 
+        ".cr2", ".nef", ".heic", ".heif", ".avif",
+        // Executables, Libraries, Binaries
+        ".exe", ".dll", ".sys", ".bin", ".iso", ".img", ".so", ".dylib", ".msi", ".obj", ".o", 
+        ".pdb", ".lib", ".com", ".drv", ".ocx", ".class",
+        // Archives & Compressed
+        ".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz", ".cab", ".zst", ".tgz", ".7-zip",
+        // Documents & Databases
+        ".pdf", ".docx", ".xlsx", ".pptx", ".doc", ".xls", ".ppt", ".db", ".sqlite", ".sqlite3", 
+        ".parquet", ".mdb", ".accdb", ".dat",
+        // Fonts
+        ".ttf", ".otf", ".woff", ".woff2", ".eot"
+    };
+
+    private static string GetBinaryGlyph(string ext)
+    {
+        return ext switch
+        {
+            ".wav" or ".mp3" or ".flac" or ".ogg" or ".aac" or ".m4a" or ".wma" or ".aiff" or ".aif" or ".alac" or ".opus" or ".mid" or ".midi" or ".ape" => "\uEC4F", // Audio glyph
+            ".mp4" or ".mkv" or ".avi" or ".mov" or ".wmv" or ".flv" or ".webm" or ".m4v" => "\uE714", // Video glyph
+            ".png" or ".jpg" or ".jpeg" or ".gif" or ".bmp" or ".webp" or ".ico" or ".tiff" or ".tif" => "\uEB9F", // Image glyph
+            ".zip" or ".rar" or ".7z" or ".tar" or ".gz" or ".bz2" or ".xz" or ".cab" => "\uF012", // Archive glyph
+            ".pdf" => "\uEA90", // PDF glyph
+            _ => "\uEB9F" // Generic binary file glyph
+        };
+    }
+
+    private static bool IsBinaryFileFast(string filePath)
+    {
+        try
+        {
+            using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            byte[] buffer = new byte[1024];
+            int read = fs.Read(buffer, 0, buffer.Length);
+            for (int i = 0; i < read; i++)
+            {
+                if (buffer[i] == 0) return true;
+            }
+            return false;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     public void SelectFile(string filePath)
     {
         if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
@@ -553,10 +632,12 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
             SelectedItem = matching;
         }
 
+        long fileLength = 0;
         try
         {
             var fi = new FileInfo(filePath);
-            CurrentEditingFileSizeText = FSItem.FormatSize(fi.Length);
+            fileLength = fi.Length;
+            CurrentEditingFileSizeText = FSItem.FormatSize(fileLength);
         }
         catch
         {
@@ -569,6 +650,36 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
 
         var configuredExts = _configService.Current.EditorExtensions;
         bool isConfigured = configuredExts.Contains(ext);
+
+        // Check if file is a known binary format or exceeds max preview size (5MB)
+        bool isKnownBinary = BinaryExtensions.Contains(ext);
+        bool isOversized = fileLength > TextFileService.MaxEditableSize;
+        bool isBinaryContent = isKnownBinary || (!isConfigured && fileLength > 0 && IsBinaryFileFast(filePath));
+
+        if (isBinaryContent || isOversized)
+        {
+            // Binary or oversized file: never offer text preview or unlock
+            EditorText = string.Empty;
+            IsPreviewUnlocked = false;
+            RequiresPreviewUnlock = true;
+            CanUnlockPreview = false;
+            IsEditorLocked = true;
+            CanUnlockToEdit = false;
+            EditorEncodingName = isBinaryContent ? "Binary" : "Oversized";
+            EditorNewlineName = "-";
+
+            if (isOversized)
+            {
+                PreviewNoticeGlyph = "\uE890";
+                PreviewNoticeText = $"File size ({FSItem.FormatSize(fileLength)}) exceeds the 5 MB preview limit.";
+            }
+            else
+            {
+                PreviewNoticeGlyph = GetBinaryGlyph(ext);
+                PreviewNoticeText = $"Binary file format ({ext}). Text preview is not available.";
+            }
+            return;
+        }
 
         if (isConfigured)
         {
@@ -586,29 +697,36 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
 
                 IsPreviewUnlocked = true;
                 RequiresPreviewUnlock = false;
+                CanUnlockPreview = false;
                 IsEditorLocked = true; // Read-only view
                 CanUnlockToEdit = true;
-                StatusMessage = $"Previewing '{CurrentEditingFileName}' ({CurrentEditingFileSizeText}) [Read-Only]";
             }
             catch (Exception ex)
             {
                 EditorText = string.Empty;
                 IsPreviewUnlocked = false;
-                RequiresPreviewUnlock = false;
+                RequiresPreviewUnlock = true;
+                CanUnlockPreview = false;
                 IsEditorLocked = true;
                 CanUnlockToEdit = false;
+                PreviewNoticeGlyph = "\uE783";
+                PreviewNoticeText = $"Cannot preview: {ex.Message}";
                 StatusMessage = $"Cannot preview: {ex.Message}";
             }
         }
         else
         {
-            // Non-configured extension: do not read content automatically! Show unlock prompt
+            // Non-configured text extension: show unlock prompt
             EditorText = string.Empty;
             IsPreviewUnlocked = false;
             RequiresPreviewUnlock = true;
+            CanUnlockPreview = true;
             IsEditorLocked = true;
             CanUnlockToEdit = false;
-            StatusMessage = $"Selected '{CurrentEditingFileName}' (Click 'Unlock Preview' to inspect)";
+            EditorEncodingName = "Unknown";
+            EditorNewlineName = "-";
+            PreviewNoticeGlyph = "\uE890";
+            PreviewNoticeText = "This file type is not in your configured fast-preview list. Unlock preview to inspect text content (supported up to 5MB).";
         }
     }
 
@@ -620,6 +738,9 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
         HasActiveFile = false;
         IsPreviewUnlocked = false;
         RequiresPreviewUnlock = false;
+        CanUnlockPreview = false;
+        PreviewNoticeText = string.Empty;
+        PreviewNoticeGlyph = "\uE890";
         IsEditorLocked = true;
         CanUnlockToEdit = false;
         IsJsonFile = false;
@@ -647,6 +768,9 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
         if (string.IsNullOrWhiteSpace(CurrentEditingFilePath) || !File.Exists(CurrentEditingFilePath))
             return;
 
+        if (!CanUnlockPreview)
+            return;
+
         try
         {
             var result = _textFileService.ReadText(CurrentEditingFilePath);
@@ -670,6 +794,10 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
         }
         catch (Exception ex)
         {
+            RequiresPreviewUnlock = true;
+            CanUnlockPreview = false;
+            PreviewNoticeGlyph = "\uE783";
+            PreviewNoticeText = $"Cannot preview: {ex.Message}";
             StatusMessage = $"Cannot unlock preview: {ex.Message}";
         }
     }

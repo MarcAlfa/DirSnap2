@@ -26,6 +26,11 @@ public sealed class FSItem
             ? brush as SolidColorBrush
             : null;
 
+    public SolidColorBrush? TreeItemForegroundBrush =>
+        IsCurrentFolder && Application.Current.Resources.TryGetValue("AppAccentBrush", out var brush)
+            ? brush as SolidColorBrush
+            : null;
+
     public Windows.UI.Text.FontWeight TreeItemFontWeight =>
         IsCurrentFolder ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal;
 
@@ -76,6 +81,9 @@ public sealed class FSItem
     {
         get
         {
+            if (IsCurrentFolder && Application.Current.Resources.TryGetValue("AppAccentBrush", out var accent) && accent is SolidColorBrush acb)
+                return $"#{acb.Color.R:X2}{acb.Color.G:X2}{acb.Color.B:X2}";
+
             if (Name == "..") return "#60A5FA"; // Soft blue
             if (IsDirectory) return "#F59E0B";  // Warm folder yellow / amber
 

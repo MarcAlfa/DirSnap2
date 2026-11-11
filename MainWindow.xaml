@@ -21,6 +21,7 @@
         <!-- ==================== 0: TAB VIEW HEADER ==================== -->
         <TabView Grid.Row="0"
                  x:Name="MainTabView"
+                 TabWidthMode="SizeToContent"
                  TabItemsSource="{Binding Tabs}"
                  SelectedItem="{Binding ActiveTab, Mode=TwoWay}"
                  CanReorderTabs="True"
@@ -108,19 +109,54 @@
                     </DropDownButton.Flyout>
                 </DropDownButton>
 
-                <!-- Address Bar (Path Box + Go Button) -->
+                <!-- Address Bar (Path Box + Copy Button + Clear Button + Go Button) -->
                 <Grid Grid.Column="2">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <TextBox x:Name="AddressTextBox"
-                             Grid.Column="0"
-                             Text="{Binding CurrentAddressBarPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                             KeyDown="AddressTextBox_KeyDown"
-                             VerticalAlignment="Center"
-                             FontSize="12"
-                             Padding="8,5" />
+                    <Grid Grid.Column="0">
+                        <TextBox x:Name="AddressTextBox"
+                                 Text="{Binding CurrentAddressBarPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 KeyDown="AddressTextBox_KeyDown"
+                                 VerticalAlignment="Center"
+                                 FontSize="12"
+                                 Padding="8,5,58,5">
+                            <TextBox.Resources>
+                                <!-- Suppress default transient WinUI delete button so our dedicated buttons are always visible -->
+                                <Style TargetType="Button" x:Key="DeleteButtonStyle">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Setter Property="Width" Value="0" />
+                                    <Setter Property="Height" Value="0" />
+                                    <Setter Property="MinWidth" Value="0" />
+                                    <Setter Property="MinHeight" Value="0" />
+                                </Style>
+                            </TextBox.Resources>
+                        </TextBox>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,4,0" Spacing="2">
+                            <!-- Copy Button -->
+                            <Button x:Name="CopyAddressButton"
+                                    Click="CopyAddressButton_Click"
+                                    ToolTipService.ToolTip="Copy path to clipboard"
+                                    Padding="4"
+                                    Width="24" Height="24"
+                                    Background="Transparent"
+                                    BorderThickness="0">
+                                <FontIcon Glyph="&#xE8C8;" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </Button>
+
+                            <!-- Clear ("X") Button - Always visible and clickable -->
+                            <Button x:Name="ClearAddressButton"
+                                    Click="ClearAddressButton_Click"
+                                    ToolTipService.ToolTip="Clear path"
+                                    Padding="4"
+                                    Width="24" Height="24"
+                                    Background="Transparent"
+                                    BorderThickness="0">
+                                <FontIcon Glyph="&#xE711;" FontSize="10" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </Button>
+                        </StackPanel>
+                    </Grid>
                     <Button Grid.Column="1" Click="GoAddressButton_Click"
                             ToolTipService.ToolTip="Go to path (Enter)"
                             Padding="10,5" Margin="4,0,0,0" FontSize="11"

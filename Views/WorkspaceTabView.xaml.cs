@@ -28,6 +28,8 @@ public sealed partial class WorkspaceTabView : UserControl
     private double _splitterStartX;
     private double _splitterStartWidth;
 
+    private TreeViewNode? _currentTargetTreeNode;
+
     public event Action<string>? OpenInNewTabRequested;
 
     public WorkspaceTabView()
@@ -68,7 +70,9 @@ public sealed partial class WorkspaceTabView : UserControl
             or nameof(WorkspaceTabViewModel.IsEditorLocked)
             or nameof(WorkspaceTabViewModel.IsMarkdownFile)
             or nameof(WorkspaceTabViewModel.EditorText)
-            or nameof(WorkspaceTabViewModel.HasActiveFile))
+            or nameof(WorkspaceTabViewModel.HasActiveFile)
+            or nameof(WorkspaceTabViewModel.EditorWrap)
+            or nameof(WorkspaceTabViewModel.EditorTextWrapping))
         {
             UpdateEditorViewMode();
         }
@@ -82,6 +86,12 @@ public sealed partial class WorkspaceTabView : UserControl
             EditorTextBox.Visibility = Visibility.Collapsed;
             return;
         }
+
+        var scrollMode = ViewModel.EditorWrap ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto;
+        MarkdownScrollViewer.HorizontalScrollBarVisibility = scrollMode;
+        ScrollViewer.SetHorizontalScrollBarVisibility(EditorTextBox, scrollMode);
+        MarkdownRichTextBlock.TextWrapping = ViewModel.EditorTextWrapping;
+        EditorTextBox.TextWrapping = ViewModel.EditorTextWrapping;
 
         if (ViewModel.IsMarkdownFile && ViewModel.IsEditorLocked)
         {
@@ -114,17 +124,32 @@ public sealed partial class WorkspaceTabView : UserControl
 
     private void FolderTreeFlyout_Opened(object sender, object e)
     {
-        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+        void ScrollToTarget()
         {
-            if (HierarchicalTreeView.SelectedNode is { } node)
+            if (_currentTargetTreeNode is { } targetNode)
             {
-                if (HierarchicalTreeView.ContainerFromNode(node) is TreeViewItem tvi)
+                var curr = targetNode.Parent;
+                while (curr != null)
+                {
+                    curr.IsExpanded = true;
+                    HierarchicalTreeView.Expand(curr);
+                    curr = curr.Parent;
+                }
+
+                targetNode.IsExpanded = true;
+                HierarchicalTreeView.Expand(targetNode);
+                HierarchicalTreeView.SelectedNode = targetNode;
+
+                if (HierarchicalTreeView.ContainerFromNode(targetNode) is TreeViewItem tvi)
                 {
                     tvi.StartBringIntoView(new BringIntoViewOptions { AnimationDesired = false });
                     tvi.Focus(FocusState.Programmatic);
                 }
             }
-        });
+        }
+
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal, ScrollToTarget);
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, ScrollToTarget);
     }
 
     // ==================== SPLITTER DRAG ====================
@@ -300,6 +325,7 @@ public sealed partial class WorkspaceTabView : UserControl
             return;
 
         HierarchicalTreeView.RootNodes.Clear();
+        _currentTargetTreeNode = null;
 
         try
         {
@@ -309,11 +335,14 @@ public sealed partial class WorkspaceTabView : UserControl
 
             var allowedExt = ViewModel.ShowAll ? null : ViewModel.ConfigService.Current.EditorExtensions;
 
+            bool isRootTarget = string.Equals(rootDir.TrimEnd('\\', '/'), targetPath.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase);
+
             var rootFsItem = new FSItem
             {
                 Name = rootDir,
                 Path = rootDir,
-                IsDirectory = true
+                IsDirectory = true,
+                IsCurrentFolder = isRootTarget
             };
 
             var rootNode = new TreeViewNode
@@ -322,6 +351,8 @@ public sealed partial class WorkspaceTabView : UserControl
                 IsExpanded = true,
                 HasUnrealizedChildren = false
             };
+
+            var nodesToExpand = new List<TreeViewNode> { rootNode };
 
             // Build hierarchy segments
             var segments = BuildPathSegments(rootDir, targetPath);
@@ -339,30 +370,22 @@ public sealed partial class WorkspaceTabView : UserControl
 
                 foreach (var d in dirs)
                 {
-                    bool isTarget = string.Equals(d.Path, targetSubPath, StringComparison.OrdinalIgnoreCase);
+                    bool isTargetSubPath = string.Equals(d.Path, targetSubPath, StringComparison.OrdinalIgnoreCase);
+                    bool isFinalTarget = string.Equals(d.Path.TrimEnd('\\', '/'), targetPath.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase);
+                    d.IsCurrentFolder = isFinalTarget;
+
                     var dNode = new TreeViewNode
                     {
                         Content = d,
-                        HasUnrealizedChildren = !isTarget,
-                        IsExpanded = isTarget
+                        HasUnrealizedChildren = !isTargetSubPath,
+                        IsExpanded = isTargetSubPath
                     };
                     currentNode.Children.Add(dNode);
 
-                    if (isTarget)
+                    if (isTargetSubPath)
                     {
                         nextNode = dNode;
-                    }
-                }
-
-                if (string.Equals(currentPathAccum, targetPath, StringComparison.OrdinalIgnoreCase))
-                {
-                    foreach (var f in files)
-                    {
-                        currentNode.Children.Add(new TreeViewNode
-                        {
-                            Content = f,
-                            HasUnrealizedChildren = false
-                        });
+                        nodesToExpand.Add(dNode);
                     }
                 }
 
@@ -378,7 +401,7 @@ public sealed partial class WorkspaceTabView : UserControl
             }
 
             // Populate current folder (leaf)
-            if (string.Equals(currentPathAccum, targetPath, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(currentPathAccum.TrimEnd('\\', '/'), targetPath.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase))
             {
                 var (targetDirs, targetFiles, _) = ViewModel.FileSystemService.ScanDirectory(targetPath, ViewModel.ShowAll, allowedExt);
                 currentNode.Children.Clear();
@@ -400,6 +423,7 @@ public sealed partial class WorkspaceTabView : UserControl
                 }
                 currentNode.IsExpanded = true;
                 currentNode.HasUnrealizedChildren = false;
+                nodesToExpand.Add(currentNode);
             }
 
             if (currentNode.Content is FSItem activeItem)
@@ -407,8 +431,18 @@ public sealed partial class WorkspaceTabView : UserControl
                 activeItem.IsCurrentFolder = true;
             }
 
+            _currentTargetTreeNode = currentNode;
+
             HierarchicalTreeView.RootNodes.Add(rootNode);
-            HierarchicalTreeView.SelectedNode = currentNode;
+
+            // Explicitly call Expand on all nodes down the chain
+            foreach (var n in nodesToExpand)
+            {
+                n.IsExpanded = true;
+                HierarchicalTreeView.Expand(n);
+            }
+
+            HierarchicalTreeView.SelectedNode = _currentTargetTreeNode;
         }
         catch (Exception ex)
         {
@@ -428,7 +462,7 @@ public sealed partial class WorkspaceTabView : UserControl
         string relative = normTarget.Substring(normRoot.Length).TrimStart('\\', '/');
         var parts = relative.Split(new[] { '\\', '/' }, StringSplitOptions.RemoveEmptyEntries);
 
-        string current = normRoot;
+        string current = normRoot.EndsWith(':') ? normRoot + "\\" : normRoot;
         foreach (var p in parts)
         {
             current = Path.Combine(current, p);

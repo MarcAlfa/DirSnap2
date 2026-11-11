@@ -9,6 +9,24 @@
             </ResourceDictionary.MergedDictionaries>
 
             <ResourceDictionary.ThemeDictionaries>
+                <!-- Default (Dark) Theme Dictionary -->
+                <ResourceDictionary x:Key="Default">
+                    <SolidColorBrush x:Key="AppBackgroundBrush" Color="#1F1F1F" />
+                    <SolidColorBrush x:Key="AppSurfaceBrush" Color="#252526" />
+                    <SolidColorBrush x:Key="AppBorderBrush" Color="#333333" />
+                    <SolidColorBrush x:Key="AppAccentBrush" Color="#0078D4" />
+                    <SolidColorBrush x:Key="AppAccentHoverBrush" Color="#106EBE" />
+                    <SolidColorBrush x:Key="AppAccentSubtleBrush" Color="#260078D4" />
+                    <SolidColorBrush x:Key="TabViewItemHeaderBackgroundSelected" Color="#260078D4" />
+                    <SolidColorBrush x:Key="TabViewItemHeaderForegroundSelected" Color="#0078D4" />
+                    <SolidColorBrush x:Key="TabViewItemStrokeSelected" Color="#0078D4" />
+                    <SolidColorBrush x:Key="TextFillColorPrimaryBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="TextFillColorSecondaryBrush" Color="#C5FFFFFF" />
+                    <SolidColorBrush x:Key="TextFillColorTertiaryBrush" Color="#87FFFFFF" />
+                    <SolidColorBrush x:Key="TextFillColorDisabledBrush" Color="#5DFFFFFF" />
+                </ResourceDictionary>
+
+                <!-- Dark Theme Dictionary Alias -->
                 <ResourceDictionary x:Key="Dark">
                     <SolidColorBrush x:Key="AppBackgroundBrush" Color="#1F1F1F" />
                     <SolidColorBrush x:Key="AppSurfaceBrush" Color="#252526" />
@@ -19,7 +37,13 @@
                     <SolidColorBrush x:Key="TabViewItemHeaderBackgroundSelected" Color="#260078D4" />
                     <SolidColorBrush x:Key="TabViewItemHeaderForegroundSelected" Color="#0078D4" />
                     <SolidColorBrush x:Key="TabViewItemStrokeSelected" Color="#0078D4" />
+                    <SolidColorBrush x:Key="TextFillColorPrimaryBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="TextFillColorSecondaryBrush" Color="#C5FFFFFF" />
+                    <SolidColorBrush x:Key="TextFillColorTertiaryBrush" Color="#87FFFFFF" />
+                    <SolidColorBrush x:Key="TextFillColorDisabledBrush" Color="#5DFFFFFF" />
                 </ResourceDictionary>
+
+                <!-- Light Theme Dictionary -->
                 <ResourceDictionary x:Key="Light">
                     <SolidColorBrush x:Key="AppBackgroundBrush" Color="#F3F3F3" />
                     <SolidColorBrush x:Key="AppSurfaceBrush" Color="#FFFFFF" />
@@ -30,6 +54,10 @@
                     <SolidColorBrush x:Key="TabViewItemHeaderBackgroundSelected" Color="#260078D4" />
                     <SolidColorBrush x:Key="TabViewItemHeaderForegroundSelected" Color="#0078D4" />
                     <SolidColorBrush x:Key="TabViewItemStrokeSelected" Color="#0078D4" />
+                    <SolidColorBrush x:Key="TextFillColorPrimaryBrush" Color="#E4000000" />
+                    <SolidColorBrush x:Key="TextFillColorSecondaryBrush" Color="#9E000000" />
+                    <SolidColorBrush x:Key="TextFillColorTertiaryBrush" Color="#72000000" />
+                    <SolidColorBrush x:Key="TextFillColorDisabledBrush" Color="#5C000000" />
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
 

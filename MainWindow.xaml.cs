@@ -6,6 +6,8 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
+using Windows.ApplicationModel.DataTransfer;
 using Windows.Graphics;
 using Windows.Storage.Pickers;
 using Windows.System;
@@ -235,6 +237,35 @@ public sealed partial class MainWindow : Window
         PopulatePlacesMenu();
     }
 
+    private async void CopyAddressButton_Click(object sender, RoutedEventArgs e)
+    {
+        var path = AddressTextBox.Text?.Trim();
+        if (string.IsNullOrEmpty(path))
+            path = ViewModel.ActiveTab?.CurrentPath;
+
+        if (!string.IsNullOrEmpty(path))
+        {
+            var dp = new DataPackage();
+            dp.SetText(path);
+            Clipboard.SetContent(dp);
+
+            if (sender is Button btn && btn.Content is FontIcon icon)
+            {
+                var originalGlyph = icon.Glyph;
+                icon.Glyph = "\uE73E"; // Checkmark
+                await System.Threading.Tasks.Task.Delay(1200);
+                icon.Glyph = originalGlyph;
+            }
+        }
+    }
+
+    private void ClearAddressButton_Click(object sender, RoutedEventArgs e)
+    {
+        AddressTextBox.Text = string.Empty;
+        ViewModel.CurrentAddressBarPath = string.Empty;
+        AddressTextBox.Focus(FocusState.Programmatic);
+    }
+
     private void FavoriteCurrentPath_Click(object sender, RoutedEventArgs e)
     {
         if (ViewModel.ActiveTab != null)
@@ -359,7 +390,7 @@ public sealed partial class MainWindow : Window
     {
         try
         {
-            var dialog = new Views.SettingsDialog(_configService, _themeService, (FrameworkElement)Content)
+            var dialog = new Views.SettingsDialog(_configService, _themeService, (FrameworkElement)Content, this)
             {
                 XamlRoot = ((FrameworkElement)Content).XamlRoot
             };
