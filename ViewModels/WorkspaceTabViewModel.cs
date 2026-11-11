@@ -72,10 +72,10 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
     private bool _showAll;
 
     [ObservableProperty]
-    private string _sortColumn = "name";
+    private string _sortColumn = "mtime";
 
     [ObservableProperty]
-    private bool _sortDescending;
+    private bool _sortDescending = true;
 
     [ObservableProperty]
     private int _foldersCount;
@@ -249,7 +249,7 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
             _mode = initialTabState.Mode ?? "flat";
             _filterQuery = initialTabState.Filter ?? string.Empty;
             _showAll = initialTabState.ShowAll;
-            _sortColumn = initialTabState.SortCol ?? "name";
+            _sortColumn = initialTabState.SortCol ?? "mtime";
             _sortDescending = initialTabState.SortDesc;
             _editorWrap = initialTabState.EditorWrap;
             if (!string.IsNullOrEmpty(initialTabState.SelectedFile) && File.Exists(initialTabState.SelectedFile))
@@ -833,6 +833,19 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
         // One Reset notification instead of one per row
         FlatItems.ReplaceAll(rows);
 
+        // A folder renamed while selected: select it again under its new name
+        if (_pendingSelectFolderPath != null)
+        {
+            var renamed = rows.FirstOrDefault(x => x.IsDirectory && x.Name != ".." &&
+                                                   string.Equals(x.Path, _pendingSelectFolderPath, StringComparison.OrdinalIgnoreCase));
+            _pendingSelectFolderPath = null;
+            if (renamed != null)
+            {
+                SelectedItem = renamed;
+                return;
+            }
+        }
+
         var folderRow = selectedFolderPath == null
             ? null
             : rows.FirstOrDefault(x => x.IsDirectory && (x.Name == "..") == selectedWasParentRow &&
@@ -845,6 +858,15 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
         {
             ReselectCurrentFileInList();
         }
+    }
+
+    private string? _pendingSelectFolderPath;
+
+    /// <summary>Rescans the folder and selects <paramref name="folderPath"/> in the new list.</summary>
+    public void RefreshAndSelectFolder(string folderPath)
+    {
+        _pendingSelectFolderPath = folderPath;
+        Refresh();
     }
 
     [RelayCommand]

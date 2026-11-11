@@ -82,7 +82,8 @@ public sealed partial class WorkspaceTabView
         {
             // Same rules as the main list (Show all / allowed extensions), off the UI thread
             var result = await Task.Run(() => vm.FileSystemService.ScanDirectory(path, showAll, allowedExt));
-            items = result.Directories.Concat(result.Files).ToList();
+            // Last modified first, folders and files mixed (like the main list sorted by date)
+            items = vm.FileSystemService.SortItems(result.Directories.Concat(result.Files), "mtime", descending: true).ToList();
             error = result.Error;
         }
         catch (Exception ex)

@@ -37,10 +37,26 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <!-- Section Title -->
+                <!-- Quick new files: empty .txt / .md named after the current date and time -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                    <FontIcon Glyph="&#xE8B7;" FontSize="13" Foreground="{ThemeResource AppAccentBrush}" />
-                    <TextBlock Text="Files &amp; Folders" FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center" />
+                    <Button Click="NewTxtButton_Click"
+                            ToolTipService.ToolTip="New .txt file in this folder (named with today's date and time)"
+                            BorderBrush="{ThemeResource AppAccentBrush}" BorderThickness="1"
+                            Padding="8,4" FontSize="11">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <FontIcon Glyph="&#xE710;" FontSize="11" Foreground="{ThemeResource AppAccentBrush}" />
+                            <TextBlock Text="TXT" FontWeight="SemiBold" />
+                        </StackPanel>
+                    </Button>
+                    <Button Click="NewMdButton_Click"
+                            ToolTipService.ToolTip="New .md file in this folder (named with today's date and time)"
+                            BorderBrush="{ThemeResource AppAccentBrush}" BorderThickness="1"
+                            Padding="8,4" FontSize="11">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <FontIcon Glyph="&#xE710;" FontSize="11" Foreground="{ThemeResource AppAccentBrush}" />
+                            <TextBlock Text="MD" FontWeight="SemiBold" />
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
 
                 <!-- Quick Counters for Snap List -->
@@ -326,6 +342,22 @@
                                         <MenuFlyoutItem Text="Add to Snap List" Click="Context_AddToSnapList_Click">
                                             <MenuFlyoutItem.Icon>
                                                 <FontIcon Glyph="&#xE710;" />
+                                            </MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutSeparator />
+                                        <MenuFlyoutItem Text="Copy" Click="Context_Copy_Click" KeyboardAcceleratorTextOverride="Ctrl+C">
+                                            <MenuFlyoutItem.Icon>
+                                                <FontIcon Glyph="&#xE8C8;" />
+                                            </MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Rename" Click="Context_Rename_Click" KeyboardAcceleratorTextOverride="F2">
+                                            <MenuFlyoutItem.Icon>
+                                                <FontIcon Glyph="&#xE8AC;" />
+                                            </MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem Text="Delete" Click="Context_Delete_Click" KeyboardAcceleratorTextOverride="Del">
+                                            <MenuFlyoutItem.Icon>
+                                                <FontIcon Glyph="&#xE74D;" />
                                             </MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
                                         <MenuFlyoutSeparator />

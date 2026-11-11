@@ -453,6 +453,28 @@ public sealed partial class WorkspaceTabView : UserControl
 
         if (ViewModel?.SelectedItem is not { } item) return;
 
+        var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control);
+        bool isCtrl = (ctrl & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0;
+
+        if (isCtrl && e.Key == VirtualKey.C)
+        {
+            _ = CopyItemToClipboardAsync(item);
+            e.Handled = true;
+            return;
+        }
+        if (e.Key == VirtualKey.F2)
+        {
+            _ = RenameItemAsync(item);
+            e.Handled = true;
+            return;
+        }
+        if (e.Key == VirtualKey.Delete)
+        {
+            _ = DeleteItemAsync(item);
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == VirtualKey.Insert)
         {
             ViewModel.AddItemToSnapListCommand.Execute(item);

@@ -5,7 +5,7 @@
 ---
 
 ## 📌 Versioning
-- **Current Version**: `0.1.0`
+- **Current Version**: `0.1.1`
 - **Single Source of Truth**: Defined strictly in `AppConstants.cs` (`AppConstants.AppVersion`). All components, UI titles, export headers, and metadata reference this single constant.
 
 ---
@@ -194,3 +194,10 @@ Replaces the old Lists tab with an intuitive "shopping cart" paradigm:
   - [x] Folder Contents panel under the file list: shows the subfolders and files of the folder selected in the list without entering it (same Show all / extension rules). Double-click a subfolder to open it, or a file to open its folder and preview it. Height and collapsed state saved in config.
   - [x] Navigation to another folder empties the preview, unless the open file has unsaved edits (then it stays, with its edits).
   - [x] The file list panel width is now saved too (`left_panel_width`).
+- [x] **Phase 14: Version 0.1.1 - Copy, Rename, Delete to Recycle Bin, Quick New Files & Sort by Last Modified**
+  - [x] Version bump to `0.1.1` across `AppConstants.cs`, `DirSnap2.csproj`, and `app.manifest`
+  - [x] Copy (right-click or `Ctrl+C` in the list): puts the file/folder on the clipboard like Explorer, ready to paste in Explorer or other apps.
+  - [x] Rename (right-click or `F2`): dialog with the name selected without its extension, validation inside the dialog (invalid characters, existing name), case-only renames supported. The open file follows the rename; blocked when it would affect a file with unsaved edits.
+  - [x] Delete (right-click or `Del`): asks twice, then moves the item to the Recycle Bin (`RecycleBinService`, `SHFileOperation` with undo). Refused on network and removable drives, where Windows would delete permanently. Blocked when it would affect a file with unsaved edits.
+  - [x] `+ TXT` / `+ MD` buttons in the list header (instead of the "Files & Folders" label): create a file named with the current date/time (`2026-11-11_21-35.txt`, `_2`, `_3`... if it exists) in the current folder and open it in edit mode.
+  - [x] Default sort is now *last modified first*, in the list and in the Folder Contents panel. Existing tabs are switched once (`sort_mtime_default_applied`); later header clicks are kept.

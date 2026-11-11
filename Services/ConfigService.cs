@@ -134,6 +134,18 @@ public sealed class ConfigService : IConfigService
 
     private void SanitizeConfig()
     {
+        // v0.1.1: the default sort became "last modified first"; tabs saved before keep
+        // their old "name" sort otherwise. Applied once, later header clicks are kept.
+        if (!Current.SortMtimeDefaultApplied)
+        {
+            foreach (var tab in Current.Workspace.Tabs)
+            {
+                tab.SortCol = "mtime";
+                tab.SortDesc = true;
+            }
+            Current.SortMtimeDefaultApplied = true;
+        }
+
         if (Current.Workspace.Tabs.Count == 0)
         {
             Current.Workspace.Tabs.Add(new WorkspaceTabState

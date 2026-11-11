@@ -38,10 +38,10 @@ public sealed class WorkspaceTabState
     public bool ShowAll { get; set; }
 
     [JsonPropertyName("sort_col")]
-    public string SortCol { get; set; } = "name"; // "name", "size", "mtime"
+    public string SortCol { get; set; } = "mtime"; // "name", "size", "mtime" (default: last modified first)
 
     [JsonPropertyName("sort_desc")]
-    public bool SortDesc { get; set; }
+    public bool SortDesc { get; set; } = true;
 
     [JsonPropertyName("selected_file")]
     public string? SelectedFile { get; set; }
@@ -105,6 +105,10 @@ public sealed class AppConfig
 
     [JsonPropertyName("folder_peek_open")]
     public bool FolderPeekOpen { get; set; } = true;
+
+    /// <summary>One-time switch (v0.1.1) of the saved tabs to the new default sort: last modified first.</summary>
+    [JsonPropertyName("sort_mtime_default_applied")]
+    public bool SortMtimeDefaultApplied { get; set; }
 
     [JsonPropertyName("find_match_case")]
     public bool FindMatchCase { get; set; }

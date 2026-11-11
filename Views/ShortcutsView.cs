@@ -38,6 +38,9 @@ public static class ShortcutsView
             new Shortcut("Enter", "Open the selected folder or file"),
             new Shortcut("Double-click", "Open folder / open file in edit mode"),
             new Shortcut("Ins", "Add the selected item to the Snap List"),
+            new Shortcut("Ctrl + C", "Copy the selected file/folder (paste it in Explorer)"),
+            new Shortcut("F2", "Rename the selected file/folder"),
+            new Shortcut("Del", "Move the selected file/folder to the Recycle Bin (asks twice)"),
         }),
         ("Editor", new[]
         {
