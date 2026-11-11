@@ -24,7 +24,7 @@ public static class ShortcutsView
             new Shortcut("F5", "Refresh the current folder"),
             new Shortcut("Ctrl + L", "Go to the address bar"),
             new Shortcut("Enter", "Open the typed path (address bar)"),
-            new Shortcut("Ctrl + F", "Go to the quick filter"),
+            new Shortcut("Ctrl + F", "Go to the quick filter (file list)"),
         }),
         ("Tabs", new[]
         {
@@ -43,6 +43,10 @@ public static class ShortcutsView
         {
             new Shortcut("Ctrl + E", "Switch between read-only and edit mode"),
             new Shortcut("Ctrl + S", "Save the file"),
+            new Shortcut("Ctrl + F", "Find in the file (when the preview has focus)"),
+            new Shortcut("F3 / Shift + F3", "Next / previous match"),
+            new Shortcut("Enter / Shift + Enter", "Next / previous match (find box)"),
+            new Shortcut("Esc", "Close the find bar"),
         }),
         ("Snap List", new[]
         {

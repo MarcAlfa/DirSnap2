@@ -20,12 +20,13 @@
         </Grid.ColumnDefinitions>
 
         <!-- ==================== LEFT PANEL: NAVIGATION & FILES ==================== -->
-        <Grid Grid.Column="0" Background="{ThemeResource AppSurfaceBrush}" BorderBrush="{ThemeResource AppBorderBrush}" BorderThickness="0,0,1,0">
+        <Grid Grid.Column="0" x:Name="LeftPanel" Background="{ThemeResource AppSurfaceBrush}" BorderBrush="{ThemeResource AppBorderBrush}" BorderThickness="0,0,1,0">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
+                <RowDefinition Height="*" MinHeight="80" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
@@ -362,8 +363,91 @@
                 </ListView>
             </Grid>
 
+            <!-- Folder Contents panel: files and subfolders of the folder selected in the list -->
+            <Grid Grid.Row="4" x:Name="FolderPeekPanel"
+                  Background="{ThemeResource AppBackgroundBrush}" BorderBrush="{ThemeResource AppBorderBrush}" BorderThickness="0,1,0,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- Drag handle on the top edge: resizes the panel (height saved in config) -->
+                <Border Grid.Row="0" x:Name="FolderPeekSplitter" Height="6" Margin="0,-3,0,0" VerticalAlignment="Top"
+                        Background="Transparent" Canvas.ZIndex="1"
+                        PointerEntered="FolderPeekSplitter_PointerEntered"
+                        PointerExited="FolderPeekSplitter_PointerExited"
+                        PointerPressed="FolderPeekSplitter_PointerPressed"
+                        PointerMoved="FolderPeekSplitter_PointerMoved"
+                        PointerReleased="FolderPeekSplitter_PointerReleased"
+                        PointerCaptureLost="FolderPeekSplitter_PointerCaptureLost" />
+
+                <!-- Header -->
+                <Grid Grid.Row="0" Padding="10,4,4,4" ColumnSpacing="6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Grid.Column="0" Glyph="&#xE8B7;" FontSize="12" Foreground="{ThemeResource SystemFillColorCautionBrush}" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" x:Name="FolderPeekTitle" Text="Folder contents" FontSize="11.5" FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                    <Button Grid.Column="2" x:Name="FolderPeekCollapseButton" Click="FolderPeekCollapse_Click"
+                            Padding="6,2" Background="Transparent" BorderThickness="0" CornerRadius="4"
+                            ToolTipService.ToolTip="Hide / show the folder contents">
+                        <FontIcon x:Name="FolderPeekCollapseIcon" Glyph="&#xE70D;" FontSize="10" />
+                    </Button>
+                </Grid>
+
+                <!-- Body -->
+                <Grid Grid.Row="1" x:Name="FolderPeekBody" Height="160" BorderBrush="{ThemeResource AppBorderBrush}" BorderThickness="0,1,0,0">
+                    <TextBlock x:Name="FolderPeekHint" Margin="12,8" FontSize="11" TextWrapping="Wrap"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               Text="Select a folder in the list to see its files here." />
+                    <ListView x:Name="FolderPeekListView"
+                              SelectionMode="Single"
+                              Visibility="Collapsed"
+                              DoubleTapped="FolderPeekListView_DoubleTapped"
+                              KeyDown="FolderPeekListView_KeyDown">
+                        <ListView.ItemContainerStyle>
+                            <Style TargetType="ListViewItem">
+                                <Setter Property="MinHeight" Value="20" />
+                                <Setter Property="Height" Value="20" />
+                                <Setter Property="Padding" Value="4,0" />
+                                <Setter Property="Margin" Value="0" />
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            </Style>
+                        </ListView.ItemContainerStyle>
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Height="20" Padding="4,0" ColumnSpacing="6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="70" />
+                                        <ColumnDefinition Width="115" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                                        <FontIcon Glyph="{Binding Glyph}" FontSize="11" Foreground="{Binding GlyphBrush}" />
+                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" FontSize="11"
+                                                   Foreground="{Binding ItemForegroundBrush}"
+                                                   FontFamily="Consolas, Cascadia Code, Courier New" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="1" Text="{Binding FormattedSize}" FontSize="10.5"
+                                               FontFamily="Consolas, Cascadia Code, Courier New"
+                                               Foreground="{Binding DetailsForegroundBrush}"
+                                               HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="2" Text="{Binding FormattedModifiedTime}" FontSize="10"
+                                               FontFamily="Consolas, Cascadia Code, Courier New"
+                                               Foreground="{Binding DetailsForegroundBrush}"
+                                               HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                </Grid>
+            </Grid>
+
             <!-- Bottom Left Info Bar: Always shows folder totals -->
-            <Border Grid.Row="4" Background="{ThemeResource AppBackgroundBrush}" BorderBrush="{ThemeResource AppBorderBrush}" BorderThickness="0,1,0,0" Padding="8,4">
+            <Border Grid.Row="5" Background="{ThemeResource AppBackgroundBrush}" BorderBrush="{ThemeResource AppBorderBrush}" BorderThickness="0,1,0,0" Padding="8,4">
                 <TextBlock Text="{Binding FolderSummaryText}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
             </Border>
         </Grid>
@@ -380,8 +464,9 @@
         </Border>
 
         <!-- ==================== RIGHT PANEL: TEXT EDITOR ==================== -->
-        <Grid Grid.Column="2" Background="{ThemeResource AppSurfaceBrush}">
+        <Grid Grid.Column="2" x:Name="EditorPanel" Background="{ThemeResource AppSurfaceBrush}">
             <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
@@ -418,6 +503,27 @@
 
                     <!-- Editor Actions -->
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                        <!-- Find in file (Ctrl+F while the preview has focus) -->
+                        <Button Click="FindButton_Click"
+                                Visibility="{Binding IsPreviewUnlocked, Converter={StaticResource BoolToVisibilityConverter}}"
+                                ToolTipService.ToolTip="Find in file (Ctrl+F in the preview, F3 next)"
+                                Padding="7,4" FontSize="11"
+                                Background="Transparent"
+                                BorderBrush="{ThemeResource AppBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="4">
+                            <FontIcon Glyph="&#xE721;" FontSize="12" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                        </Button>
+
+                        <!-- Outline panel toggle (functions / classes / headings) -->
+                        <ToggleButton x:Name="OutlineToggleButton"
+                                      Style="{StaticResource ToolbarToggleButtonStyle}"
+                                      Click="OutlineToggleButton_Click"
+                                      Visibility="Collapsed"
+                                      ToolTipService.ToolTip="Show / hide the outline (functions, classes, headings)">
+                            <FontIcon Glyph="&#xE8FD;" FontSize="12" />
+                        </ToggleButton>
+
                         <!-- Copy All Text Button (Only visible for text preview/edit) -->
                         <Button Click="CopyEditorTextButton_Click"
                                 Visibility="{Binding IsPreviewUnlocked, Converter={StaticResource BoolToVisibilityConverter}}"
@@ -473,8 +579,45 @@
                 </Grid>
             </Border>
 
-            <!-- Editor Content (Body with 3 states) -->
-            <Grid Grid.Row="1">
+            <!-- Find Bar (search inside the preview / editor, also in read-only mode) -->
+            <Border Grid.Row="1" x:Name="FindBar" Visibility="Collapsed"
+                    Background="{ThemeResource AppBackgroundBrush}" BorderBrush="{ThemeResource AppBorderBrush}" BorderThickness="0,0,0,1" Padding="12,5">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <FontIcon Glyph="&#xE721;" FontSize="12" Foreground="{ThemeResource AppAccentBrush}" VerticalAlignment="Center" />
+                    <TextBox x:Name="FindTextBox"
+                             Width="260" MinHeight="28" Padding="8,4" FontSize="12"
+                             PlaceholderText="Find in file..."
+                             TextChanged="FindTextBox_TextChanged"
+                             KeyDown="FindTextBox_KeyDown" />
+                    <TextBlock x:Name="FindCountText" MinWidth="70" FontSize="11" VerticalAlignment="Center"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <ToggleButton x:Name="FindMatchCaseToggle"
+                                  Style="{StaticResource ToolbarToggleButtonStyle}"
+                                  Click="FindMatchCaseToggle_Click"
+                                  ToolTipService.ToolTip="Match case">
+                        <TextBlock Text="Aa" FontSize="11" FontWeight="SemiBold" />
+                    </ToggleButton>
+                    <Button Click="FindPrevious_Click" ToolTipService.ToolTip="Previous match (Shift+F3, Shift+Enter)"
+                            Padding="7,4" Background="Transparent" BorderBrush="{ThemeResource AppBorderBrush}" BorderThickness="1" CornerRadius="4">
+                        <FontIcon Glyph="&#xE70E;" FontSize="11" />
+                    </Button>
+                    <Button Click="FindNext_Click" ToolTipService.ToolTip="Next match (F3, Enter)"
+                            Padding="7,4" Background="Transparent" BorderBrush="{ThemeResource AppBorderBrush}" BorderThickness="1" CornerRadius="4">
+                        <FontIcon Glyph="&#xE70D;" FontSize="11" />
+                    </Button>
+                    <Button Click="FindClose_Click" ToolTipService.ToolTip="Close (Esc)"
+                            Padding="7,4" Background="Transparent" BorderThickness="0" CornerRadius="4">
+                        <FontIcon Glyph="&#xE711;" FontSize="11" />
+                    </Button>
+                </StackPanel>
+            </Border>
+
+            <!-- Editor Content (Body with 3 states) + Outline panel on the right -->
+            <Grid Grid.Row="2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
                 <!-- State 1: No file selected -->
                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10"
                             Visibility="{Binding HasActiveFile, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter='inverse'}">
@@ -559,10 +702,78 @@
                         <TextBlock Text="TOP" FontSize="11" FontWeight="Bold" />
                     </StackPanel>
                 </Button>
+
+                <!-- Outline Panel: functions / classes / procedures / headings of the open file -->
+                <Grid Grid.Column="1" x:Name="OutlinePanel" Width="230" Visibility="Collapsed"
+                      Background="{ThemeResource AppBackgroundBrush}" BorderBrush="{ThemeResource AppBorderBrush}" BorderThickness="1,0,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Grid Grid.Row="0" Padding="10,6,4,6" BorderBrush="{ThemeResource AppBorderBrush}" BorderThickness="0,0,0,1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                            <FontIcon Glyph="&#xE8FD;" FontSize="12" Foreground="{ThemeResource AppAccentBrush}" />
+                            <TextBlock Text="Outline" FontWeight="SemiBold" FontSize="12" />
+                            <TextBlock x:Name="OutlineCountText" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Click="OutlineClose_Click" ToolTipService.ToolTip="Close the outline"
+                                Padding="6,3" Background="Transparent" BorderThickness="0" CornerRadius="4">
+                            <FontIcon Glyph="&#xE711;" FontSize="10" />
+                        </Button>
+                    </Grid>
+                    <TextBlock Grid.Row="1" x:Name="OutlineEmptyText" Text="No functions found"
+                               Margin="12" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="Collapsed" />
+                    <ListView Grid.Row="1" x:Name="OutlineListView"
+                              SelectionMode="Single"
+                              IsItemClickEnabled="True"
+                              ItemClick="OutlineListView_ItemClick">
+                        <ListView.ItemContainerStyle>
+                            <Style TargetType="ListViewItem">
+                                <Setter Property="MinHeight" Value="22" />
+                                <Setter Property="Height" Value="22" />
+                                <Setter Property="Padding" Value="6,0" />
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            </Style>
+                        </ListView.ItemContainerStyle>
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <Grid ColumnSpacing="6" ToolTipService.ToolTip="{Binding ToolTip}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Orientation="Horizontal" Spacing="5" Margin="{Binding Indent}" VerticalAlignment="Center">
+                                        <FontIcon Glyph="{Binding Glyph}" FontSize="10" Foreground="{ThemeResource AppAccentBrush}" />
+                                        <TextBlock Text="{Binding Name}" FontSize="11.5" TextTrimming="CharacterEllipsis"
+                                                   FontFamily="Consolas, Cascadia Code, Courier New" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="1" Text="{Binding LineText}" FontSize="10"
+                                               FontFamily="Consolas, Cascadia Code, Courier New"
+                                               Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+
+                    <!-- Drag handle on the left edge: resizes the outline panel (width saved in config) -->
+                    <Border Grid.RowSpan="2" x:Name="OutlineSplitter"
+                            Width="6" HorizontalAlignment="Left" Margin="-3,0,0,0"
+                            Background="Transparent"
+                            PointerEntered="Splitter_PointerEntered"
+                            PointerExited="Splitter_PointerExited"
+                            PointerPressed="OutlineSplitter_PointerPressed"
+                            PointerMoved="OutlineSplitter_PointerMoved"
+                            PointerReleased="OutlineSplitter_PointerReleased"
+                            PointerCaptureLost="OutlineSplitter_PointerCaptureLost" />
+                </Grid>
             </Grid>
 
             <!-- Editor Status Footer -->
-            <Border Grid.Row="2" Background="{ThemeResource AppBackgroundBrush}" BorderBrush="{ThemeResource AppBorderBrush}" BorderThickness="0,1,0,0" Padding="12,4">
+            <Border Grid.Row="3" Background="{ThemeResource AppBackgroundBrush}" BorderBrush="{ThemeResource AppBorderBrush}" BorderThickness="0,1,0,0" Padding="12,4">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />

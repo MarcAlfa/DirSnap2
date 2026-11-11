@@ -41,6 +41,8 @@ public sealed partial class WorkspaceTabView : UserControl
         };
 
         MarkdownScrollViewer.ViewChanged += (_, _) => UpdateScrollToTopButtonVisibility();
+        InitFindAndOutline();
+        InitFolderPeek();
         EditorTextBox.Loaded += (_, _) => HookEditorScrollViewer();
 
         DataContextChanged += OnDataContextChanged;
@@ -58,10 +60,14 @@ public sealed partial class WorkspaceTabView : UserControl
         if (_currentVm != null)
         {
             _currentVm.PropertyChanged += OnViewModelPropertyChanged;
+            ApplySavedPanelWidths();
+            ApplySavedFolderPeekLayout();
+            ScheduleFolderPeek();
             MarkdownRichTextBlock.FontSize = _currentVm.EditorFontSize;
             EditorTextBox.FontSize = _currentVm.EditorFontSize;
             _currentVm.SyncSelectedFile();
             UpdateEditorViewMode();
+            UpdateOutline();
             if (_currentVm.SelectedItem != null)
             {
                 FlatListView.ScrollIntoView(_currentVm.SelectedItem);
@@ -81,7 +87,21 @@ public sealed partial class WorkspaceTabView : UserControl
         {
             UpdateEditorViewMode();
         }
-        else if (e.PropertyName == nameof(WorkspaceTabViewModel.EditorFontSize))
+
+        if (e.PropertyName is nameof(WorkspaceTabViewModel.EditorText)
+            or nameof(WorkspaceTabViewModel.CurrentEditingFilePath)
+            or nameof(WorkspaceTabViewModel.IsPreviewUnlocked)
+            or nameof(WorkspaceTabViewModel.HasActiveFile))
+        {
+            ScheduleOutlineRefresh();
+        }
+
+        if (e.PropertyName is nameof(WorkspaceTabViewModel.SelectedItem) or nameof(WorkspaceTabViewModel.ShowAll))
+        {
+            ScheduleFolderPeek();
+        }
+
+        if (e.PropertyName == nameof(WorkspaceTabViewModel.EditorFontSize))
         {
             if (ViewModel != null)
             {
@@ -98,6 +118,7 @@ public sealed partial class WorkspaceTabView : UserControl
             MarkdownScrollViewer.Visibility = Visibility.Collapsed;
             EditorTextBox.Visibility = Visibility.Collapsed;
             ScrollToTopButton.Visibility = Visibility.Collapsed;
+            if (IsFindOpen) CloseFind(focusEditor: false);
             return;
         }
 
@@ -112,6 +133,8 @@ public sealed partial class WorkspaceTabView : UserControl
         if (ViewModel.IsMarkdownFile && ViewModel.IsEditorLocked)
         {
             bool isDark = ThemeService.ActiveTheme != ElementTheme.Light;
+            MarkdownRichTextBlock.TextHighlighters.Clear(); // ranges refer to the old content
+            InvalidateMarkdownIndex();
             MarkdownHighlighter.Highlight(MarkdownRichTextBlock, ViewModel.EditorText, isDark);
             MarkdownScrollViewer.Visibility = Visibility.Visible;
             EditorTextBox.Visibility = Visibility.Collapsed;
@@ -124,6 +147,7 @@ public sealed partial class WorkspaceTabView : UserControl
         }
 
         UpdateScrollToTopButtonVisibility();
+        ScheduleFindRefresh();
     }
 
     // ==================== CURRENT FOLDER TREE FLYOUT ====================
@@ -206,7 +230,7 @@ public sealed partial class WorkspaceTabView : UserControl
 
     private void Splitter_PointerExited(object sender, PointerRoutedEventArgs e)
     {
-        if (!_isDraggingSplitter)
+        if (!_isDraggingSplitter && !_isDraggingOutlineSplitter)
         {
             ProtectedCursor = null;
         }
@@ -237,6 +261,73 @@ public sealed partial class WorkspaceTabView : UserControl
             _isDraggingSplitter = false;
             SplitterBorder.ReleasePointerCapture(e.Pointer);
             ProtectedCursor = null;
+
+            // Remember the width for the next start (and the other tabs)
+            if (ViewModel != null)
+            {
+                ViewModel.ConfigService.Current.LeftPanelWidth = Math.Round(LeftColumn.ActualWidth);
+                ViewModel.ConfigService.Save();
+            }
+        }
+    }
+
+    // ==================== OUTLINE PANEL SPLITTER ====================
+
+    private bool _isDraggingOutlineSplitter;
+    private double _outlineSplitterStartX;
+    private double _outlineSplitterStartWidth;
+
+    private const double MinOutlineWidth = 150;
+    private const double MinEditorWidth = 200;
+
+    private void ApplySavedPanelWidths()
+    {
+        if (ViewModel == null) return;
+        var cfg = ViewModel.ConfigService.Current;
+        if (cfg.LeftPanelWidth >= 260)
+            LeftColumn.Width = new GridLength(cfg.LeftPanelWidth);
+        if (cfg.OutlinePanelWidth >= MinOutlineWidth)
+            OutlinePanel.Width = cfg.OutlinePanelWidth;
+    }
+
+    private void OutlineSplitter_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        _isDraggingOutlineSplitter = true;
+        _outlineSplitterStartX = e.GetCurrentPoint(this).Position.X;
+        _outlineSplitterStartWidth = OutlinePanel.ActualWidth;
+        OutlineSplitter.CapturePointer(e.Pointer);
+        e.Handled = true;
+    }
+
+    private void OutlineSplitter_PointerMoved(object sender, PointerRoutedEventArgs e)
+    {
+        if (!_isDraggingOutlineSplitter) return;
+
+        // The panel is on the right: dragging left makes it wider
+        double delta = e.GetCurrentPoint(this).Position.X - _outlineSplitterStartX;
+        double max = Math.Max(MinOutlineWidth, EditorPanel.ActualWidth - MinEditorWidth);
+        OutlinePanel.Width = Math.Clamp(_outlineSplitterStartWidth - delta, MinOutlineWidth, max);
+    }
+
+    private void OutlineSplitter_PointerReleased(object sender, PointerRoutedEventArgs e)
+    {
+        if (!_isDraggingOutlineSplitter) return;
+        OutlineSplitter.ReleasePointerCapture(e.Pointer);
+        EndOutlineSplitterDrag();
+    }
+
+    private void OutlineSplitter_PointerCaptureLost(object sender, PointerRoutedEventArgs e) => EndOutlineSplitterDrag();
+
+    private void EndOutlineSplitterDrag()
+    {
+        if (!_isDraggingOutlineSplitter) return;
+        _isDraggingOutlineSplitter = false;
+        ProtectedCursor = null;
+
+        if (ViewModel != null)
+        {
+            ViewModel.ConfigService.Current.OutlinePanelWidth = Math.Round(OutlinePanel.Width);
+            ViewModel.ConfigService.Save();
         }
     }
 

@@ -5,7 +5,7 @@
 ---
 
 ## 📌 Versioning
-- **Current Version**: `0.0.9`
+- **Current Version**: `0.1.0`
 - **Single Source of Truth**: Defined strictly in `AppConstants.cs` (`AppConstants.AppVersion`). All components, UI titles, export headers, and metadata reference this single constant.
 
 ---
@@ -187,3 +187,10 @@ Replaces the old Lists tab with an intuitive "shopping cart" paradigm:
   - [x] Selected Folders use the accent color in the list, like selected files.
   - [x] Keyboard Shortcuts: global accelerators for `F5`, `Alt+Left/Right/Up`, `Ctrl+L` (address bar), `Ctrl+F` (filter), `Ctrl+T/W` and `Ctrl+Tab` (tabs), `Ctrl+S`, `Ctrl+E` (edit mode), `Backspace` (parent folder, in the list) and `F1`. The full list is shown by `F1` and by the *Keyboard Shortcuts* button in Settings (`ShortcutsView`).
   - [x] Open in Terminal: PowerShell fallback starts through `WorkingDirectory` (paths with apostrophes), Windows Terminal handles drive roots (`C:\`).
+- [x] **Phase 13: Version 0.1.0 - Find in File, Code Outline, Folder Contents Panel & Saved Panel Sizes**
+  - [x] Version bump to `0.1.0` across `AppConstants.cs`, `DirSnap2.csproj`, and `app.manifest`
+  - [x] Find in File: find bar above the preview/editor, also in read-only mode. `Ctrl+F` opens it when the preview has focus (the quick filter otherwise), pre-filled with the selected text; `Enter`/`Shift+Enter` and `F3`/`Shift+F3` go to the next/previous match, `Esc` closes it. Match counter ("3 of 12") and saved *Match case* toggle. In Markdown all matches are highlighted (current one in orange); in text files the current match is selected. Scrolling to a match works in two steps (coarse jump from the line position, then exact correction) because character rects are not reliable for text far from the view.
+  - [x] Code Outline panel (right side, closable, resizable, width and open state saved): lists functions and classes for Python, JavaScript/TypeScript (functions, classes, methods, arrow functions, object methods), PL/SQL (packages and package bodies with their procedures/functions, standalone procedures/functions, triggers, types, views) and Markdown headings (`CodeOutlineService`). `.txt` files get the PL/SQL outline when their content contains PL/SQL definitions. Clicking an entry scrolls to its line and highlights the name.
+  - [x] Folder Contents panel under the file list: shows the subfolders and files of the folder selected in the list without entering it (same Show all / extension rules). Double-click a subfolder to open it, or a file to open its folder and preview it. Height and collapsed state saved in config.
+  - [x] Navigation to another folder empties the preview, unless the open file has unsaved edits (then it stays, with its edits).
+  - [x] The file list panel width is now saved too (`left_panel_width`).

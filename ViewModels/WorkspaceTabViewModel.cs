@@ -497,8 +497,8 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
         IsEditorDirty = !TextFileService.EqualsIgnoringNewlineStyle(value, OriginalText);
     }
 
-    // Navigating never closes the file shown in the editor (pending edits stay there),
-    // so none of the navigation commands asks about unsaved changes.
+    // Navigating to another folder empties the preview, except when the open file has
+    // unsaved edits: then it stays (with its edits), so navigation never asks anything.
     [RelayCommand]
     public void NavigateTo(string path)
     {
@@ -511,6 +511,7 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
             return;
 
         var normalized = Path.GetFullPath(path);
+        bool folderChanged = !string.Equals(CurrentPath.TrimEnd('\\', '/'), normalized.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase);
 
         if (recordHistory && !string.Equals(CurrentPath, normalized, StringComparison.OrdinalIgnoreCase))
         {
@@ -526,7 +527,17 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
 
         _configService.AddRecent(CurrentPath);
 
+        if (folderChanged)
+            ClearPreviewOnFolderChange();
+
         Refresh();
+    }
+
+    /// <summary>The previewed file belongs to the folder left behind: close it unless it has unsaved edits.</summary>
+    private void ClearPreviewOnFolderChange()
+    {
+        if (!string.IsNullOrEmpty(CurrentEditingFilePath) && !IsEditorDirty)
+            ClearFileSelection();
     }
 
     [RelayCommand]
@@ -567,6 +578,7 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
             CurrentPath = target;
             UpdateTabTitle();
             CanGoUp = Path.GetDirectoryName(CurrentPath) != null;
+            ClearPreviewOnFolderChange();
             Refresh();
         }
 

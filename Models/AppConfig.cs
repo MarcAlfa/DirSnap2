@@ -91,6 +91,24 @@ public sealed class AppConfig
     [JsonPropertyName("editor_font_size")]
     public double EditorFontSize { get; set; } = 13;
 
+    [JsonPropertyName("outline_panel_open")]
+    public bool OutlinePanelOpen { get; set; } = true;
+
+    [JsonPropertyName("outline_panel_width")]
+    public double OutlinePanelWidth { get; set; } = 230;
+
+    [JsonPropertyName("left_panel_width")]
+    public double LeftPanelWidth { get; set; } = 480;
+
+    [JsonPropertyName("folder_peek_height")]
+    public double FolderPeekHeight { get; set; } = 160;
+
+    [JsonPropertyName("folder_peek_open")]
+    public bool FolderPeekOpen { get; set; } = true;
+
+    [JsonPropertyName("find_match_case")]
+    public bool FindMatchCase { get; set; }
+
     [JsonPropertyName("splitter_distance")]
     public double SplitterDistance { get; set; } = 450;
 

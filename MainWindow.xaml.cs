@@ -143,7 +143,14 @@ public sealed partial class MainWindow : Window
             AddressTextBox.Focus(FocusState.Keyboard);
             AddressTextBox.SelectAll();
         });
-        Add(VirtualKey.F, Ctrl, () => CurrentWorkspaceView.FocusFilter());
+        // Ctrl+F: find in the file when working in the preview, quick filter otherwise
+        Add(VirtualKey.F, Ctrl, () =>
+        {
+            if (!CurrentWorkspaceView.TryOpenFindFromShortcut())
+                CurrentWorkspaceView.FocusFilter();
+        });
+        Add(VirtualKey.F3, None, () => CurrentWorkspaceView.FindNextFromShortcut(backwards: false));
+        Add(VirtualKey.F3, VirtualKeyModifiers.Shift, () => CurrentWorkspaceView.FindNextFromShortcut(backwards: true));
 
         // Tabs
         Add(VirtualKey.T, Ctrl, () => ViewModel.AddNewTabCommand.Execute(null));
