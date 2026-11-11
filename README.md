@@ -5,7 +5,7 @@
 ---
 
 ## 📌 Versioning
-- **Current Version**: `0.0.5`
+- **Current Version**: `0.0.6`
 - **Single Source of Truth**: Defined strictly in `AppConstants.cs` (`AppConstants.AppVersion`). All components, UI titles, export headers, and metadata reference this single constant.
 
 ---

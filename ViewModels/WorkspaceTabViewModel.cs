@@ -143,7 +143,32 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsReadOnlyBadgeVisible))]
+    [NotifyPropertyChangedFor(nameof(IsEditingEnabled))]
+    [NotifyPropertyChangedFor(nameof(EditModeToolTip))]
     private bool _isEditorLocked = true;
+
+    public bool IsEditingEnabled
+    {
+        get => !IsEditorLocked;
+        set
+        {
+            if (value != !IsEditorLocked)
+            {
+                if (value)
+                    UnlockEditor();
+                else
+                    LockEditor();
+            }
+        }
+    }
+
+    public string EditModeToolTip => IsEditorLocked
+        ? "Unlock file to enable editing"
+        : "In modification (Click to lock read-only)";
+
+    public string WordWrapToolTip => EditorWrap
+        ? "Word Wrap: On (Click to turn off)"
+        : "Word Wrap: Off (Click to turn on)";
 
     [ObservableProperty]
     private bool _canUnlockToEdit;
@@ -296,6 +321,7 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
     partial void OnEditorWrapChanged(bool value)
     {
         OnPropertyChanged(nameof(EditorTextWrapping));
+        OnPropertyChanged(nameof(WordWrapToolTip));
         if (ConfigService?.Current != null)
         {
             ConfigService.Current.EditorWrap = value;
@@ -894,6 +920,16 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
         IsEditorLocked = false;
         CanUnlockToEdit = false;
         StatusMessage = $"Editing enabled for '{CurrentEditingFileName}'";
+    }
+
+    [RelayCommand]
+    public void LockEditor()
+    {
+        if (!HasActiveFile || !IsPreviewUnlocked)
+            return;
+
+        IsEditorLocked = true;
+        StatusMessage = $"Locked '{CurrentEditingFileName}' (read-only)";
     }
 
     [RelayCommand]

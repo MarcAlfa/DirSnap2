@@ -682,6 +682,31 @@ public sealed partial class WorkspaceTabView : UserControl
 
     // ==================== EDITOR SHORTCUTS & DIRTY ====================
 
+    private async void CopyEditorTextButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel == null || !ViewModel.IsPreviewUnlocked) return;
+
+        try
+        {
+            var dp = new DataPackage();
+            dp.SetText(ViewModel.EditorText ?? string.Empty);
+            Clipboard.SetContent(dp);
+            ViewModel.StatusMessage = $"Copied text of '{ViewModel.CurrentEditingFileName}' to clipboard";
+
+            if (sender is Button btn && btn.Content is FontIcon icon)
+            {
+                var originalGlyph = icon.Glyph;
+                icon.Glyph = "\uE73E"; // Checkmark
+                await System.Threading.Tasks.Task.Delay(1200);
+                icon.Glyph = originalGlyph;
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error("[CopyEditorTextButton_Click] Error copying text", ex);
+        }
+    }
+
     private void EditorTextBox_KeyDown(object sender, KeyRoutedEventArgs e)
     {
         var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control);

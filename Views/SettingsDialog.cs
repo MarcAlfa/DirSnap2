@@ -231,13 +231,12 @@ public sealed class SettingsDialog : ContentDialog
 
         _addBtn = new Button
         {
+            Style = AccentButtonStyle,
             Content = "Add",
             Margin = new Thickness(10, 0, 0, 0),
             Padding = new Thickness(18, 5, 18, 5),
             FontSize = 12,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            CornerRadius = new CornerRadius(4),
-            Foreground = new SolidColorBrush(Colors.White)
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
         };
         _addBtn.Click += (_, _) => AddExtension();
         _addExtensionBox.KeyDown += (_, ke) =>
@@ -313,7 +312,7 @@ public sealed class SettingsDialog : ContentDialog
         };
         _aboutCopyText = new TextBlock
         {
-            Text = "© alpha-studio.it",
+            Text = "© 2026 alpha-studio.it",
             FontSize = 11
         };
         aboutTextStack.Children.Add(_aboutTitleText);
@@ -323,13 +322,12 @@ public sealed class SettingsDialog : ContentDialog
 
         _openAboutBtn = new Button
         {
+            Style = AccentButtonStyle,
             Content = "Details",
             Margin = new Thickness(12, 0, 0, 0),
             Padding = new Thickness(20, 6, 20, 6),
             FontSize = 11,
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            CornerRadius = new CornerRadius(4),
-            Foreground = new SolidColorBrush(Colors.White),
             VerticalAlignment = VerticalAlignment.Center
         };
         _openAboutBtn.Click += (_, _) =>
@@ -388,6 +386,7 @@ public sealed class SettingsDialog : ContentDialog
         _aboutTitleText.Foreground = primaryBrush;
         _aboutCopyText.Foreground = secondaryBrush;
 
+        RefreshAccentSelectionRings();
         RebuildExtensionChips();
     }
 
@@ -417,7 +416,7 @@ public sealed class SettingsDialog : ContentDialog
 
         // Style the ContentDialog PrimaryButton ("Close"):
         // Right-aligned, active accent color, crisp white text
-        var primaryStyle = new Style(typeof(Button));
+        var primaryStyle = new Style(typeof(Button)) { BasedOn = AccentButtonStyle };
         primaryStyle.Setters.Add(new Setter(Button.BackgroundProperty, accentBrush));
         primaryStyle.Setters.Add(new Setter(Button.ForegroundProperty, new SolidColorBrush(Colors.White)));
         primaryStyle.Setters.Add(new Setter(Button.CornerRadiusProperty, new CornerRadius(4)));
@@ -454,6 +453,7 @@ public sealed class SettingsDialog : ContentDialog
 
         var btn = new Button
         {
+            Style = AccentButtonStyle,
             Width = 32,
             Height = 32,
             Padding = new Thickness(0),
@@ -465,14 +465,8 @@ public sealed class SettingsDialog : ContentDialog
         };
         ToolTipService.SetToolTip(btn, name);
 
-        bool isActive = string.Equals(_themeService.CurrentAccent, key, StringComparison.OrdinalIgnoreCase);
-        if (isActive)
-        {
-            btn.BorderBrush = new SolidColorBrush(Colors.White);
-            btn.BorderThickness = new Thickness(2);
-        }
-
         _accentButtons.Add(btn);
+        RefreshAccentSelectionRings();
 
         btn.Click += (_, _) =>
         {
@@ -481,18 +475,37 @@ public sealed class SettingsDialog : ContentDialog
             _configService.Save();
 
             // Refresh selection rings on accent buttons
-            foreach (var b in _accentButtons)
-            {
-                bool active = string.Equals(b.Tag as string, key, StringComparison.OrdinalIgnoreCase);
-                b.BorderBrush = active ? new SolidColorBrush(Colors.White) : new SolidColorBrush(Colors.Transparent);
-                b.BorderThickness = active ? new Thickness(2) : new Thickness(0);
-            }
+            RefreshAccentSelectionRings();
 
             // Immediately refresh Close and dialog buttons
             ApplyAccentToDialog();
         };
 
         return btn;
+    }
+
+    /// <summary>
+    /// Shared accent button style (App.xaml) with consistent hover/pressed feedback in both themes.
+    /// </summary>
+    private static Style? AccentButtonStyle =>
+        Application.Current.Resources.TryGetValue("AppAccentButtonStyle", out var s) ? s as Style : null;
+
+    /// <summary>
+    /// Highlights the active accent swatch with a ring that contrasts with the current theme
+    /// (white ring on Dark, near-black ring on Light).
+    /// </summary>
+    private void RefreshAccentSelectionRings()
+    {
+        var ringColor = _themeService.CurrentTheme == ElementTheme.Light
+            ? Color.FromArgb(255, 0x1F, 0x23, 0x28)
+            : Colors.White;
+
+        foreach (var b in _accentButtons)
+        {
+            bool active = string.Equals(b.Tag as string, _themeService.CurrentAccent, StringComparison.OrdinalIgnoreCase);
+            b.BorderBrush = new SolidColorBrush(active ? ringColor : Colors.Transparent);
+            b.BorderThickness = active ? new Thickness(2) : new Thickness(0);
+        }
     }
 
     private void RebuildExtensionChips()

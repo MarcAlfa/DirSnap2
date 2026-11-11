@@ -199,13 +199,13 @@
 
                 <!-- ==================== SNAP LIST WIDGET ==================== -->
                 <Button Grid.Column="4" x:Name="SnapListWidgetButton"
-                        Style="{StaticResource AppAccentButtonStyle}"
+                        ToolTipService.ToolTip="Open Snap List"
                         Padding="10,5">
                     <StackPanel Orientation="Horizontal" Spacing="6">
-                        <TextBlock Text="📋 Snap List" FontWeight="SemiBold" FontSize="12" Foreground="White" />
-                        <Border Background="{ThemeResource AppBackgroundBrush}" CornerRadius="9" Padding="6,1" VerticalAlignment="Center">
+                        <TextBlock Text="📋 Snap List" FontWeight="SemiBold" FontSize="12" />
+                        <Border Background="{ThemeResource AppAccentBrush}" CornerRadius="9" Padding="6,1" VerticalAlignment="Center">
                             <TextBlock Text="{Binding SnapList.Count}" 
-                                       FontSize="11" FontWeight="Bold" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                                       FontSize="11" FontWeight="Bold" Foreground="White" />
                         </Border>
                     </StackPanel>
 

@@ -73,11 +73,9 @@ public sealed class AboutWindow : Window
             Debug.WriteLine($"[AboutWindow] Window setup error: {ex.Message}");
         }
 
-        // Active Accent & Hover Brushes
+        // Active Accent Brush
         var accentBrush = Application.Current.Resources["AppAccentBrush"] as SolidColorBrush
             ?? new SolidColorBrush(Color.FromArgb(255, 16, 185, 129));
-        var hoverBrush = Application.Current.Resources["AppAccentHoverBrush"] as SolidColorBrush
-            ?? new SolidColorBrush(Color.FromArgb(255, 5, 150, 105));
 
         var accentColor = accentBrush.Color;
         _borderNormalBrush = new SolidColorBrush(Color.FromArgb(90, accentColor.R, accentColor.G, accentColor.B));
@@ -121,7 +119,7 @@ public sealed class AboutWindow : Window
         });
         headerPanel.Children.Add(new TextBlock
         {
-            Text = "© alpha-studio.it • MarcAlfa",
+            Text = "© 2026 alpha-studio.it",
             FontSize = 11,
             Foreground = new SolidColorBrush(Color.FromArgb(255, 165, 165, 165))
         });
@@ -281,28 +279,19 @@ public sealed class AboutWindow : Window
         Grid.SetColumn(tributeText, 0);
         bottomGrid.Children.Add(tributeText);
 
-        // Close button with dedicated hover/pointer states
+        // Close button: shared accent style provides consistent hover/pressed feedback
         var closeBtn = new Button
         {
             Content = "Close",
             Padding = new Thickness(24, 6, 24, 6),
             FontSize = 11,
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            CornerRadius = new CornerRadius(4),
-            Background = accentBrush,
-            Foreground = new SolidColorBrush(Colors.White),
-            BorderThickness = new Thickness(0)
+            Background = accentBrush
         };
-        closeBtn.PointerEntered += (_, _) =>
+        if (Application.Current.Resources.TryGetValue("AppAccentButtonStyle", out var accentStyle) && accentStyle is Style style)
         {
-            closeBtn.Background = hoverBrush;
-            closeBtn.Foreground = new SolidColorBrush(Colors.White);
-        };
-        closeBtn.PointerExited += (_, _) =>
-        {
-            closeBtn.Background = accentBrush;
-            closeBtn.Foreground = new SolidColorBrush(Colors.White);
-        };
+            closeBtn.Style = style;
+        }
         closeBtn.Click += (_, _) => Close();
         Grid.SetColumn(closeBtn, 1);
         bottomGrid.Children.Add(closeBtn);
