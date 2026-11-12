@@ -2,7 +2,7 @@
 
 **DirSnap 2** is a fast Windows 11 file browser with a built-in text preview and editor, made for working with folders full of notes, scripts and code (Markdown, PL/SQL, Python, JavaScript...). It is written in **C# / .NET 8 / WinUI 3** (Windows App SDK, unpackaged) and replaces the Python/Tkinter DirSnap v1.
 
-- **Current version**: `0.2.4` (single source: `AppConstants.AppVersion` in `AppConstants.cs`)
+- **Current version**: `0.2.5` (single source: `AppConstants.AppVersion` in `AppConstants.cs`)
 - **History**: [CHANGELOG.md](CHANGELOG.md) · **Next ideas**: [TODO.md](TODO.md)
 - **UI language**: English
 - **License**: [MIT](LICENSE)
@@ -68,7 +68,7 @@ Under the list: the files and subfolders of the folder **selected** in the list,
 - **Markdown** shown with syntax colors; **JSON** formatter and validator; word wrap; adjustable font size.
 - **Find in file** (`Ctrl+F` in the preview, `F3` / `Shift+F3`), also in read-only mode, with match counter and *Match case*.
 - **Line counter** in the footer (`Ln 12 / 340`) and **Go to line** (`Ctrl+G` or click on the counter).
-- **Outline** panel: functions, procedures, classes and headings of the open file (PL/SQL, also inside `.txt` files, Python, JavaScript/TypeScript, Markdown). Click an entry to jump to it; the entry you are reading is highlighted while scrolling.
+- **Outline** panel: functions, procedures, classes and headings of the open file (PL/SQL, also inside `.txt` files, Python, JavaScript/TypeScript, C#, PowerShell, `.bat`/`.cmd` labels, Markdown; PL/SQL subprograms declared inside another procedure or function are not listed). Click an entry to jump to it; the entry you are reading is highlighted while scrolling.
 
 ## Snap List
 

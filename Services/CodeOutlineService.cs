@@ -12,7 +12,8 @@ public sealed class OutlineItem
 
     public string Glyph => Kind switch
     {
-        "class" or "type" or "package" or "package body" or "type body" => "", // box
+        "class" or "type" or "package" or "package body" or "type body"
+            or "struct" or "interface" or "enum" or "record" => "", // box
         "heading" => "",                                                         // text
         "trigger" => "",                                                         // lightning
         "view" => "",                                                            // grid
@@ -26,12 +27,12 @@ public sealed class OutlineItem
 
 /// <summary>
 /// Lightweight, regex-based outline (function/class names) for Python, JavaScript/TypeScript,
-/// PL/SQL and Markdown headings. It is not a real parser: it skips comments and
-/// Python docstrings line by line, which is enough to list definitions.
+/// C#, PowerShell, batch labels, PL/SQL and Markdown headings. It is not a real parser: it skips
+/// comments and Python docstrings line by line, which is enough to list definitions.
 /// </summary>
 public static class CodeOutlineService
 {
-    private enum Lang { None, Python, JavaScript, PlSql, Markdown }
+    private enum Lang { None, Python, JavaScript, CSharp, PowerShell, Batch, PlSql, Markdown }
 
     private static Lang GetLang(string? path)
     {
@@ -40,6 +41,9 @@ public static class CodeOutlineService
         {
             ".py" or ".pyw" => Lang.Python,
             ".js" or ".mjs" or ".cjs" or ".jsx" or ".ts" or ".tsx" or ".mts" or ".cts" => Lang.JavaScript,
+            ".cs" => Lang.CSharp,
+            ".ps1" or ".psm1" => Lang.PowerShell,
+            ".bat" or ".cmd" => Lang.Batch,
             ".sql" or ".pls" or ".plsql" or ".pks" or ".pkb" or ".pck" or ".prc" or ".fnc"
                 or ".trg" or ".tps" or ".tpb" or ".vw" or ".ddl" => Lang.PlSql,
             ".md" or ".markdown" => Lang.Markdown,
@@ -102,6 +106,9 @@ public static class CodeOutlineService
             {
                 case Lang.Python: ParsePython(lines, result); break;
                 case Lang.JavaScript: ParseJavaScript(lines, result); break;
+                case Lang.CSharp: ParseCSharp(lines, result); break;
+                case Lang.PowerShell: ParsePowerShell(lines, result); break;
+                case Lang.Batch: ParseBatch(lines, result); break;
                 case Lang.PlSql: ParsePlSql(lines, result); break;
                 case Lang.Markdown: ParseMarkdown(lines, result); break;
             }
@@ -236,6 +243,128 @@ public static class CodeOutlineService
         }
     }
 
+    // ==================== C# ====================
+
+    private const string CsModifiers =
+        @"(?:(?:public|private|protected|internal|static|virtual|override|abstract|sealed|async|extern|unsafe|new|partial|readonly|ref|file|required)\s+)*";
+
+    private static readonly Regex CsType = new(
+        @"^\s*(?:\[[^\]]*\]\s*)*" + CsModifiers + @"(?<kw>class|struct|interface|enum|record)(?:\s+(?:class|struct))?\s+(?<name>[A-Za-z_]\w*)",
+        RegexOptions.Compiled, Timeout);
+
+    // Method: "public async Task<int> Foo<T>(..." ; constructor: "public Foo(..."
+    private static readonly Regex CsMethod = new(
+        @"^\s*" + CsModifiers + @"(?:(?<ret>\([^)]*\)|[A-Za-z_][\w.]*(?:<.*?>)?[?\[\],]*)\s+)?(?<name>[A-Za-z_]\w*)\s*(?:<[^>]*>)?\s*\(",
+        RegexOptions.Compiled, Timeout);
+
+    private static readonly HashSet<string> CsKeywords = new(StringComparer.Ordinal)
+    {
+        "if", "for", "foreach", "while", "switch", "catch", "using", "lock", "return", "new", "await",
+        "throw", "else", "yield", "case", "goto", "nameof", "typeof", "sizeof", "default", "when", "base", "this",
+        "fixed", "checked", "unchecked", "var", "in", "is", "not", "and", "or",
+    };
+
+    private sealed class CsTypeScope
+    {
+        public int Depth;    // brace depth of the type's body
+        public bool Opened;  // its "{" was reached (it may be on the next line)
+        public string Name = string.Empty;
+    }
+
+    private static void ParseCSharp(string[] lines, List<OutlineItem> result)
+    {
+        bool inBlockComment = false;
+        int depth = 0;
+        var types = new List<CsTypeScope>();
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var code = StripCComments(lines[i], ref inBlockComment, "//");
+
+            // Close types whose body ended; drop a pending type that never opened ("record R(int A);")
+            while (types.Count > 0 && types[^1].Opened && depth < types[^1].Depth) types.RemoveAt(types.Count - 1);
+            if (types.Count > 0 && !types[^1].Opened && depth >= types[^1].Depth) types[^1].Opened = true;
+
+            int opened = types.Count(t => t.Opened);
+            var inner = types.Count > 0 ? types[^1] : null;
+            bool inTypeBody = inner is { Opened: true } && depth == inner.Depth;
+
+            Match m;
+            if ((m = CsType.Match(code)).Success)
+            {
+                result.Add(new OutlineItem { Name = m.Groups["name"].Value, Kind = m.Groups["kw"].Value, Line = i, Level = opened });
+                types.Add(new CsTypeScope { Depth = depth + 1, Name = m.Groups["name"].Value });
+            }
+            else if (inTypeBody && (m = CsMethod.Match(code)).Success)
+            {
+                var name = m.Groups["name"].Value;
+                bool hasRet = m.Groups["ret"].Success;
+                bool isCtor = !hasRet && inner != null && name == inner.Name;
+                if ((hasRet || isCtor) && !CsKeywords.Contains(name) && !CsKeywords.Contains(m.Groups["ret"].Value))
+                    result.Add(new OutlineItem { Name = name, Kind = isCtor ? "constructor" : "method", Line = i, Level = opened });
+            }
+
+            depth += CountBraces(code);
+            if (depth < 0) depth = 0;
+
+            if (types.Count > 0 && !types[^1].Opened)
+            {
+                if (depth >= types[^1].Depth) types[^1].Opened = true;
+                else if (code.Contains(';')) types.RemoveAt(types.Count - 1);
+            }
+        }
+    }
+
+    // ==================== POWERSHELL ====================
+
+    private static readonly Regex PsDef = new(
+        @"^\s*(?<kw>function|filter|workflow|class|enum)\s+(?<name>[\w\-:.]+)",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase, Timeout);
+
+    private static void ParsePowerShell(string[] lines, List<OutlineItem> result)
+    {
+        bool inBlockComment = false;
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            if (inBlockComment)
+            {
+                int end = line.IndexOf("#>", StringComparison.Ordinal);
+                if (end < 0) continue;
+                inBlockComment = false;
+                line = line[(end + 2)..];
+            }
+            int start = line.IndexOf("<#", StringComparison.Ordinal);
+            if (start >= 0 && line.IndexOf("#>", start + 2, StringComparison.Ordinal) < 0)
+            {
+                inBlockComment = true;
+                line = line[..start];
+            }
+
+            var m = PsDef.Match(line);
+            if (m.Success)
+            {
+                var kw = m.Groups["kw"].Value.ToLowerInvariant();
+                result.Add(new OutlineItem { Name = m.Groups["name"].Value, Kind = kw == "filter" || kw == "workflow" ? "function" : kw, Line = i });
+            }
+        }
+    }
+
+    // ==================== BATCH (.bat / .cmd) ====================
+
+    // ":label" at the start of a line ("::" is a comment)
+    private static readonly Regex BatLabel = new(@"^\s*:(?<name>[^\s:+=;,][^\s+=;,]*)", RegexOptions.Compiled, Timeout);
+
+    private static void ParseBatch(string[] lines, List<OutlineItem> result)
+    {
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var m = BatLabel.Match(lines[i]);
+            if (m.Success && !m.Groups["name"].Value.Equals("eof", StringComparison.OrdinalIgnoreCase))
+                result.Add(new OutlineItem { Name = m.Groups["name"].Value, Kind = "label", Line = i });
+        }
+    }
+
     // ==================== PL/SQL ====================
 
     private static readonly Regex SqlDef = new(
@@ -244,36 +373,118 @@ public static class CodeOutlineService
 
     private static readonly Regex SqlCreate = new(@"^\s*CREATE\b", RegexOptions.Compiled | RegexOptions.IgnoreCase, Timeout);
 
+    // Block keywords: BEGIN and CASE open, END closes ("END IF" / "END LOOP" do not: IF and LOOP are not counted; "END CASE" closes its CASE)
+    private static readonly Regex SqlBlockWord = new(@"\b(?<w>BEGIN|CASE|END)\b(?:\s+(?<next>IF|LOOP|CASE)\b)?",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase, Timeout);
+
+    // What ends a subprogram header: ";" (declaration only) or IS/AS (a body follows)
+    private static readonly Regex SqlHeaderEnd = new(@";|\b(?:IS|AS)\b(?<ext>\s+(?:LANGUAGE|EXTERNAL)\b)?",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase, Timeout);
+
+    /// <summary>A procedure/function body still open (to hide the subprograms declared inside it).</summary>
+    private sealed class SqlScope
+    {
+        public int Depth;    // block depth when its header was read
+        public bool Begun;   // its own BEGIN was reached
+    }
+
     private static void ParsePlSql(string[] lines, List<OutlineItem> result)
     {
         bool inBlockComment = false;
         bool insidePackage = false;
+        int depth = 0;
+        var scopes = new Stack<SqlScope>();
+        bool headerPending = false;   // a procedure/function header still waiting for IS/AS or ";"
 
         for (int i = 0; i < lines.Length; i++)
         {
             var code = StripCComments(lines[i], ref inBlockComment, "--");
+            if (code.Trim() == "/")
+            {
+                // End of a SQL*Plus statement: start clean
+                depth = 0; scopes.Clear(); headerPending = false; insidePackage = false;
+                continue;
+            }
+
             var m = SqlDef.Match(code);
-            if (!m.Success) continue;
-
-            var kw = Regex.Replace(m.Groups["kw"].Value.ToLowerInvariant(), @"\s+", " ");
-            bool isCreate = SqlCreate.IsMatch(code);
-
-            // "TYPE t IS TABLE OF ..." inside a package is a local type, not worth listing
-            if (kw == "type" && insidePackage && !isCreate) continue;
-
-            bool isContainer = kw is "package" or "package body" or "type body";
-            int level;
-            if (isContainer || isCreate)
+            int scanFrom = 0;
+            if (m.Success)
             {
-                insidePackage = isContainer;
-                level = 0;
-            }
-            else
-            {
-                level = insidePackage ? 1 : 0;
+                var kw = Regex.Replace(m.Groups["kw"].Value.ToLowerInvariant(), @"\s+", " ");
+                bool isCreate = SqlCreate.IsMatch(code);
+                if (isCreate)
+                {
+                    depth = 0; scopes.Clear(); headerPending = false;
+                }
+
+                bool isSubprogram = kw is "procedure" or "function";
+                // Declared inside another procedure/function: not listed
+                bool nested = isSubprogram && scopes.Count > 0;
+
+                // "TYPE t IS TABLE OF ..." inside a package is a local type, not worth listing
+                bool skip = nested || (kw == "type" && insidePackage && !isCreate);
+
+                if (!skip)
+                {
+                    bool isContainer = kw is "package" or "package body" or "type body";
+                    int level;
+                    if (isContainer || isCreate)
+                    {
+                        insidePackage = isContainer;
+                        level = 0;
+                    }
+                    else
+                    {
+                        level = insidePackage ? 1 : 0;
+                    }
+                    result.Add(new OutlineItem { Name = m.Groups["name"].Value.Replace("\"", ""), Kind = kw, Line = i, Level = level });
+                }
+
+                if (isSubprogram)
+                {
+                    headerPending = true;
+                    scanFrom = m.Index + m.Length;
+                }
             }
 
-            result.Add(new OutlineItem { Name = m.Groups["name"].Value.Replace("\"", ""), Kind = kw, Line = i, Level = level });
+            // Header spanning several lines: IS/AS opens a body, ";" was only a declaration
+            if (headerPending)
+            {
+                var h = SqlHeaderEnd.Match(code, scanFrom);
+                if (h.Success)
+                {
+                    headerPending = false;
+                    if (h.Value != ";" && !h.Groups["ext"].Success)
+                        scopes.Push(new SqlScope { Depth = depth });
+                    scanFrom = h.Index + h.Length;
+                }
+                else
+                {
+                    continue;
+                }
+            }
+
+            foreach (Match w in SqlBlockWord.Matches(code, scanFrom))
+            {
+                var word = w.Groups["w"].Value.ToUpperInvariant();
+                if (word == "BEGIN")
+                {
+                    if (scopes.Count > 0 && !scopes.Peek().Begun && depth == scopes.Peek().Depth)
+                        scopes.Peek().Begun = true;
+                    depth++;
+                }
+                else if (word == "CASE")
+                {
+                    depth++;
+                }
+                else if (!w.Groups["next"].Success
+                         || w.Groups["next"].Value.Equals("CASE", StringComparison.OrdinalIgnoreCase)) // END, END CASE, END name
+                {
+                    depth = Math.Max(0, depth - 1);
+                    if (scopes.Count > 0 && scopes.Peek().Begun && depth == scopes.Peek().Depth)
+                        scopes.Pop();
+                }
+            }
         }
     }
 

@@ -179,3 +179,7 @@ Development history, from the first setup to the current version. The [README](R
   - [x] Version bump to `0.2.4` across `AppConstants.cs`, `DirSnap2.csproj`, and `app.manifest`
   - [x] AI Assistant header: new provider badge (Gemini, OpenAI, Claude, Kimi, Compatible) next to the model badge, with a menu of every provider, the model each one uses and a "(no API key)" note, plus a shortcut to the AI settings. The choice is saved in the config and the conversation is kept: the next message sends the whole history to the new provider.
   - [x] Detached window: the "keep always on top" pin uses the app's toolbar toggle style (accent fill when on) instead of the system accent.
+- [x] **Phase 23: Version 0.2.5 - More Outline Languages, PL/SQL Nested Subprograms Hidden**
+  - [x] Version bump to `0.2.5` across `AppConstants.cs`, `DirSnap2.csproj`, and `app.manifest`
+  - [x] Outline for C# (`.cs`: classes, structs, interfaces, enums, records, with their methods and constructors; local functions, properties and fields are left out), PowerShell (`.ps1`/`.psm1`: `function`, `filter`, `class`, `enum`, skipping `<# #>` comments) and batch files (`.bat`/`.cmd`: `:labels`, without `::` comments and `:eof`).
+  - [x] PL/SQL: procedures and functions declared inside another procedure or function are not listed (package members are all kept). Bodies are tracked with BEGIN / CASE / END counting (`END IF` / `END LOOP` ignored, multi-line headers, `LANGUAGE` / `EXTERNAL` bodies), reset at every `CREATE` and `/`.
