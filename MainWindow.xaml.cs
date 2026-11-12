@@ -66,6 +66,7 @@ public sealed partial class MainWindow : Window
 
         // 4. Set Window Icon & Restore Multi-Monitor Geometry
         ConfigureWindow();
+        ConfigureTitleBar();
 
         // 5. Initialize Theme & Accent Color
         _themeService.Initialize(
@@ -236,6 +237,86 @@ public sealed partial class MainWindow : Window
         catch (Exception ex)
         {
             AppLogger.Error($"[MainWindow] Close tab error: {ex.Message}", ex);
+        }
+    }
+
+    // ==================== TITLE BAR ====================
+
+    /// <summary>
+    /// The app draws its own title bar (icon, name, version) on the window background, like the
+    /// Windows 11 apps; Windows keeps only the minimize / maximize / close buttons, made transparent.
+    /// It no longer takes the "accent color on title bars" colour of the Windows settings.
+    /// </summary>
+    private void ConfigureTitleBar()
+    {
+        try
+        {
+            ExtendsContentIntoTitleBar = true;
+            SetTitleBar(AppTitleBar); // drag area, double-click maximize, right-click system menu
+
+            AppTitleText.Text = AppConstants.AppName;
+            AppVersionText.Text = $"v{AppConstants.AppVersion}";
+
+            var icoPath = Path.Combine(AppContext.BaseDirectory, "assets", "app_icon.ico");
+            if (File.Exists(icoPath))
+                AppTitleBarIcon.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(icoPath));
+
+            UpdateTitleBarColors();
+            if (Content is FrameworkElement root)
+                root.ActualThemeChanged += (_, _) => UpdateTitleBarColors();
+
+            AppTitleBar.SizeChanged += (_, _) => UpdateTitleBarInsets();
+            AppTitleBar.Loaded += (_, _) => UpdateTitleBarInsets();
+
+            // Dimmed title when the window is not the active one, like native windows
+            Activated += (_, e) =>
+            {
+                double opacity = e.WindowActivationState == WindowActivationState.Deactivated ? 0.55 : 1.0;
+                AppTitleBarText.Opacity = opacity;
+                AppTitleBarIcon.Opacity = opacity;
+            };
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error("[MainWindow] Custom title bar setup failed", ex);
+        }
+    }
+
+    private void UpdateTitleBarInsets()
+    {
+        try
+        {
+            var tb = AppWindow.TitleBar;
+            double scale = AppTitleBar.XamlRoot?.RasterizationScale ?? 1.0;
+            if (scale <= 0) scale = 1.0;
+            TitleBarLeftInset.Width = new GridLength(tb.LeftInset / scale);
+            TitleBarRightInset.Width = new GridLength(tb.RightInset / scale);
+        }
+        catch { }
+    }
+
+    /// <summary>Caption buttons follow the app theme (dark / light), with a soft hover like Windows 11.</summary>
+    private void UpdateTitleBarColors()
+    {
+        try
+        {
+            var tb = AppWindow.TitleBar;
+            bool dark = (Content as FrameworkElement)?.ActualTheme != ElementTheme.Light;
+            var fg = dark ? Colors.White : Windows.UI.Color.FromArgb(255, 0x1F, 0x23, 0x28);
+            var inactiveFg = dark ? Windows.UI.Color.FromArgb(255, 0x8A, 0x8A, 0x8A) : Windows.UI.Color.FromArgb(255, 0x8A, 0x8F, 0x98);
+
+            tb.ButtonBackgroundColor = Colors.Transparent;
+            tb.ButtonInactiveBackgroundColor = Colors.Transparent;
+            tb.ButtonForegroundColor = fg;
+            tb.ButtonInactiveForegroundColor = inactiveFg;
+            tb.ButtonHoverBackgroundColor = dark ? Windows.UI.Color.FromArgb(0x1A, 0xFF, 0xFF, 0xFF) : Windows.UI.Color.FromArgb(0x14, 0x00, 0x00, 0x00);
+            tb.ButtonHoverForegroundColor = fg;
+            tb.ButtonPressedBackgroundColor = dark ? Windows.UI.Color.FromArgb(0x2E, 0xFF, 0xFF, 0xFF) : Windows.UI.Color.FromArgb(0x24, 0x00, 0x00, 0x00);
+            tb.ButtonPressedForegroundColor = fg;
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Warn($"[MainWindow] Title bar colors: {ex.Message}");
         }
     }
 

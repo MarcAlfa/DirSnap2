@@ -149,3 +149,7 @@ Development history, from the first setup to the current version. The [README](R
   - [x] Sorting: switching to *Modified* or *Size* starts descending (newest / largest first); *Name* starts A-Z.
   - [x] Folder info (right-click on a folder): size, files and subfolders at every level, items directly inside, folder date and the newest file at any level (`FolderStatsService`), computed in the background with live totals; junctions are counted but not followed.
   - [x] Folder Contents panel refreshes by itself: the shown folder is polled every 2 s and the panel is rebuilt only when something changed, keeping selection and scroll position.
+- [x] **Phase 17: Version 0.1.4 - Native-Style Title Bar & Log Rotation**
+  - [x] Version bump to `0.1.4` across `AppConstants.cs`, `DirSnap2.csproj`, and `app.manifest`
+  - [x] Custom title bar drawn by the app (`ExtendsContentIntoTitleBar` + `SetTitleBar`): icon, name and an accent version badge on the window background, instead of the system bar (which took the Windows "accent color on title bars" colour). The system caption buttons stay, transparent, with theme-aware colours updated on theme change; the title dims when the window is inactive. Drag, double-click maximize, system menu and snap layouts keep working.
+  - [x] Log rotation: at startup a `dirsnap2.log` over 2 MB becomes `dirsnap2.old.log` and a new log starts.
