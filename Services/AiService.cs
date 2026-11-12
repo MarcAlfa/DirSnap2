@@ -25,7 +25,11 @@ public static class AiProviders
     public const string Gemini = "gemini";
     public const string OpenAi = "openai";
     public const string Anthropic = "anthropic";
+    public const string Moonshot = "moonshot";
     public const string OpenAiCompatible = "openai_compatible";
+
+    /// <summary>Moonshot AI (Kimi) international platform, OpenAI-compatible API.</summary>
+    public const string MoonshotBaseUrl = "https://api.moonshot.ai/v1";
 
     public static readonly AiProviderInfo[] All =
     {
@@ -35,6 +39,8 @@ public static class AiProviders
             new[] { "chat-latest", "gpt-6.1-terra", "gpt-6.1-sol" }, true, false),
         new(Anthropic, "Anthropic Claude", "claude-opus-5-5",
             new[] { "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5" }, true, false),
+        new(Moonshot, "Moonshot AI (Kimi)", "kimi-k3.1-pro",
+            new[] { "kimi-k3.1-pro", "kimi-k3.1-pro-highspeed" }, true, false),
         new(OpenAiCompatible, "OpenAI-compatible (Ollama, Groq, OpenRouter, DeepSeek...)", "llama3.1",
             new[] { "llama3.1", "qwen2.5-coder", "deepseek-chat" }, false, true),
     };
@@ -252,6 +258,7 @@ public sealed class AiService : IAiService
             AiProviders.Gemini => BuildGeminiRequest(s, systemPrompt, turns),
             AiProviders.Anthropic => BuildAnthropicRequest(s, systemPrompt, turns),
             AiProviders.OpenAi => BuildOpenAiRequest("https://api.openai.com/v1", s, systemPrompt, turns),
+            AiProviders.Moonshot => BuildOpenAiRequest(AiProviders.MoonshotBaseUrl, s, systemPrompt, turns),
             _ => BuildOpenAiRequest(s.BaseUrl, s, systemPrompt, turns)
         };
     }

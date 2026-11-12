@@ -836,8 +836,14 @@ public sealed class SettingsDialog : ContentDialog
             SmallChange = 10000,
             LargeChange = 50000,
             SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Inline,
-            Width = 160,
-            FontSize = 12
+            Width = 230,
+            FontSize = 12,
+            // Thousands separators (120.000 / 120,000 by Windows locale): easier to read
+            NumberFormatter = new Windows.Globalization.NumberFormatting.DecimalFormatter
+            {
+                IsGrouped = true,
+                FractionDigits = 0
+            }
         };
         _aiMaxCharsBox.ValueChanged += (sender, _) =>
         {
@@ -849,7 +855,9 @@ public sealed class SettingsDialog : ContentDialog
         limitRow.Children.Add(_aiMaxCharsBox);
         panel.Children.Add(limitRow);
         panel.Children.Add(AiLabel(
-            "Safety cap on the files sent with one question (about 4 characters per token). Above it the chat asks you to deselect something.",
+            "Safety cap on the files sent with one question (about 4 characters per token). Above it the chat asks you to deselect something.\n" +
+            "Example: the default 120,000 characters ≈ 30,000 tokens, about 3,000 lines of code. " +
+            "Gemini, OpenAI, Claude and Kimi handle 400,000-500,000 easily; keep it lower for local models (Ollama).",
             secondary: true));
 
         // Test connection

@@ -21,8 +21,8 @@ public sealed partial class AiChatViewModel : ObservableObject
     private readonly ITextFileService _textFileService;
     private readonly IAiService _aiService;
 
-    private readonly HashSet<WorkspaceTabViewModel> _extraTabs = new();
-    private WorkspaceTabViewModel? _watchedTab;
+    private readonly HashSet<WorkspaceTabViewModel> _selectedTabs = new();
+    private readonly List<WorkspaceTabViewModel> _watchedTabs = new();
     private CancellationTokenSource? _cts;
     private CancellationTokenSource? _estimateCts;
 
@@ -43,19 +43,15 @@ public sealed partial class AiChatViewModel : ObservableObject
     public string SendButtonGlyph => IsBusy ? "" : "";
 
     [ObservableProperty]
-    private bool _includeCurrentTab = true;
-
-    [ObservableProperty]
     private bool _includeSnapList;
 
     [ObservableProperty]
     private bool _includeFolderList;
 
-    [ObservableProperty]
-    private string _currentTabLabel = "Current Tab: (none)";
+    /// <summary>Tabs with an open file, each with its "send" checkbox.</summary>
+    public ObservableCollection<AiTabContextItem> TabItems { get; } = new();
 
-    [ObservableProperty]
-    private string _extraTabsLabel = "Add Tab…";
+    public bool HasTabItems => TabItems.Count > 0;
 
     [ObservableProperty]
     private string _snapListLabel = "Snap List (0)";
@@ -93,18 +89,29 @@ public sealed partial class AiChatViewModel : ObservableObject
 
         Messages.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasMessages));
 
+        TabItems.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasTabItems));
+
         _main.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(MainViewModel.ActiveTab))
             {
-                WatchActiveTab();
+                // A new current tab: only its file is ticked, the others are a click away
+                _selectedTabs.Clear();
+                if (_main.ActiveTab != null)
+                    _selectedTabs.Add(_main.ActiveTab);
                 RefreshContextLabels();
             }
         };
-        _main.Tabs.CollectionChanged += (_, _) => RefreshContextLabels();
+        _main.Tabs.CollectionChanged += (_, _) =>
+        {
+            WatchTabs();
+            RefreshContextLabels();
+        };
         _main.SnapList.ItemsChanged += (_, _) => RefreshContextLabels();
 
-        WatchActiveTab();
+        if (_main.ActiveTab != null)
+            _selectedTabs.Add(_main.ActiveTab);
+        WatchTabs();
         RefreshSettings();
         RefreshContextLabels();
     }
@@ -127,16 +134,20 @@ public sealed partial class AiChatViewModel : ObservableObject
             StatusText = string.Empty;
     }
 
-    private void WatchActiveTab()
+    /// <summary>Follows every tab, so the list updates when a file is opened or the folder changes.</summary>
+    private void WatchTabs()
     {
-        if (_watchedTab != null)
-            _watchedTab.PropertyChanged -= OnWatchedTabPropertyChanged;
-        _watchedTab = _main.ActiveTab;
-        if (_watchedTab != null)
-            _watchedTab.PropertyChanged += OnWatchedTabPropertyChanged;
+        foreach (var t in _watchedTabs)
+            t.PropertyChanged -= OnTabPropertyChanged;
+        _watchedTabs.Clear();
+        foreach (var t in _main.Tabs)
+        {
+            t.PropertyChanged += OnTabPropertyChanged;
+            _watchedTabs.Add(t);
+        }
     }
 
-    private void OnWatchedTabPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    private void OnTabPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(WorkspaceTabViewModel.CurrentEditingFilePath)
             or nameof(WorkspaceTabViewModel.HasActiveFile)
@@ -146,29 +157,38 @@ public sealed partial class AiChatViewModel : ObservableObject
         }
     }
 
-    partial void OnIncludeCurrentTabChanged(bool value) => ScheduleContextEstimate();
     partial void OnIncludeSnapListChanged(bool value) => ScheduleContextEstimate();
     partial void OnIncludeFolderListChanged(bool value) => ScheduleContextEstimate();
 
-    private string TabName(WorkspaceTabViewModel tab) => $"Tab {_main.Tabs.IndexOf(tab) + 1}";
+    /// <summary>"Tab 2 - MARCALFA": tab number and the name of its folder.</summary>
+    private string TabName(WorkspaceTabViewModel tab) =>
+        string.IsNullOrEmpty(tab.CurrentFolderName)
+            ? $"Tab {_main.Tabs.IndexOf(tab) + 1}"
+            : $"Tab {_main.Tabs.IndexOf(tab) + 1} - {tab.CurrentFolderName}";
 
     private static bool TabHasFile(WorkspaceTabViewModel tab) =>
         tab.HasActiveFile && !string.IsNullOrEmpty(tab.CurrentEditingFilePath);
 
+    /// <summary>Rebuilds the tab list (max 10 rows) and the Snap List label.</summary>
     public void RefreshContextLabels()
     {
-        var active = _main.ActiveTab;
-        CurrentTabLabel = active != null && TabHasFile(active)
-            ? $"{TabName(active)}: {Path.GetFileName(active.CurrentEditingFilePath)}"
-            : "Current Tab: (none)";
+        _selectedTabs.RemoveWhere(t => !_main.Tabs.Contains(t));
 
-        _extraTabs.RemoveWhere(t => !_main.Tabs.Contains(t) || t == active || !TabHasFile(t));
-        ExtraTabsLabel = _extraTabs.Count switch
+        foreach (var item in TabItems)
+            item.PropertyChanged -= OnTabItemPropertyChanged;
+        TabItems.Clear();
+
+        foreach (var tab in _main.Tabs.Where(TabHasFile))
         {
-            0 => "Add Tab…",
-            1 => $"+ {TabName(_extraTabs.First())}",
-            _ => $"+ {_extraTabs.Count} tabs"
-        };
+            var item = new AiTabContextItem(
+                tab,
+                TabName(tab),
+                Path.GetFileName(tab.CurrentEditingFilePath) ?? string.Empty,
+                tab == _main.ActiveTab,
+                _selectedTabs.Contains(tab));
+            item.PropertyChanged += OnTabItemPropertyChanged;
+            TabItems.Add(item);
+        }
 
         int files = _main.SnapList.Items.Count(i => !i.IsDirectory);
         SnapListLabel = $"Snap List ({files})";
@@ -176,24 +196,15 @@ public sealed partial class AiChatViewModel : ObservableObject
         ScheduleContextEstimate();
     }
 
-    /// <summary>Other tabs with an open file, for the "Add Tab…" menu.</summary>
-    public IEnumerable<(WorkspaceTabViewModel Tab, string Label, bool IsSelected)> GetOtherTabs()
+    private void OnTabItemPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        foreach (var tab in _main.Tabs)
-        {
-            if (tab == _main.ActiveTab || !TabHasFile(tab))
-                continue;
-            yield return (tab, $"{TabName(tab)}: {Path.GetFileName(tab.CurrentEditingFilePath)}", _extraTabs.Contains(tab));
-        }
-    }
-
-    public void SetExtraTab(WorkspaceTabViewModel tab, bool selected)
-    {
-        if (selected)
-            _extraTabs.Add(tab);
+        if (sender is not AiTabContextItem item || e.PropertyName != nameof(AiTabContextItem.IsSelected))
+            return;
+        if (item.IsSelected)
+            _selectedTabs.Add(item.Tab);
         else
-            _extraTabs.Remove(tab);
-        RefreshContextLabels();
+            _selectedTabs.Remove(item.Tab);
+        ScheduleContextEstimate();
     }
 
     // ==================== CONTEXT ====================
@@ -204,16 +215,13 @@ public sealed partial class AiChatViewModel : ObservableObject
         var files = new List<AiContextFile>();
         var active = _main.ActiveTab;
 
-        AiContextFile FromTab(WorkspaceTabViewModel tab, string source) =>
-            new(source, tab.CurrentEditingFilePath!, tab.IsPreviewUnlocked ? tab.EditorText : null);
-
-        if (IncludeCurrentTab && active != null && TabHasFile(active))
-            files.Add(FromTab(active, $"{TabName(active)} (Active)"));
-
-        foreach (var tab in _main.Tabs)
+        // Current tab first, then the others in tab order
+        foreach (var tab in _main.Tabs.OrderBy(t => t == active ? 0 : 1))
         {
-            if (_extraTabs.Contains(tab) && tab != active && TabHasFile(tab))
-                files.Add(FromTab(tab, TabName(tab)));
+            if (!_selectedTabs.Contains(tab) || !TabHasFile(tab))
+                continue;
+            string source = tab == active ? $"{TabName(tab)} (Active)" : TabName(tab);
+            files.Add(new AiContextFile(source, tab.CurrentEditingFilePath!, tab.IsPreviewUnlocked ? tab.EditorText : null));
         }
 
         if (IncludeSnapList)
@@ -310,13 +318,11 @@ public sealed partial class AiChatViewModel : ObservableObject
 
         if (label == "Compare Tabs")
         {
-            // Nothing extra chosen: compare the current tab with every other tab that has a file
-            if (_extraTabs.Count == 0)
+            // Fewer than two tabs ticked: compare every tab that has a file
+            if (TabItems.Count(i => i.IsSelected) < 2)
             {
-                foreach (var (tab, _, _) in GetOtherTabs().ToList())
-                    _extraTabs.Add(tab);
-                IncludeCurrentTab = true;
-                RefreshContextLabels();
+                foreach (var item in TabItems)
+                    item.IsSelected = true;
             }
             var (files, _) = GatherSources();
             if (files.Count < 2)
@@ -588,4 +594,27 @@ public sealed partial class AiChatViewModel : ObservableObject
             ? $"AI {what} appended to '{tab.CurrentEditingFileName}' - review it, then Ctrl+S to save"
             : $"AI {what} replaced the content of '{tab.CurrentEditingFileName}' - review it, then Ctrl+S to save");
     }
+}
+
+/// <summary>One row of the tab list in the AI context selector.</summary>
+public sealed partial class AiTabContextItem : ObservableObject
+{
+    public WorkspaceTabViewModel Tab { get; }
+    public string Title { get; }
+    public string FileName { get; }
+    public bool IsActive { get; }
+
+    [ObservableProperty]
+    private bool _isSelected;
+
+    public AiTabContextItem(WorkspaceTabViewModel tab, string title, string fileName, bool isActive, bool isSelected)
+    {
+        Tab = tab;
+        Title = title;
+        FileName = fileName;
+        IsActive = isActive;
+        _isSelected = isSelected;
+    }
+
+    public string ToolTip => Tab.CurrentEditingFilePath ?? string.Empty;
 }

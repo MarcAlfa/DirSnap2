@@ -171,42 +171,52 @@
 
         <!-- ==================== CONTEXT SELECTOR ==================== -->
         <Border Grid.Row="1" Padding="0,6,0,4">
-            <StackPanel Spacing="2">
+            <StackPanel Spacing="4">
                 <TextBlock Text="Send with the question:" FontSize="10.5" Opacity="0.7" />
-                <Grid ColumnSpacing="8" RowSpacing="0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-
-                    <CheckBox Grid.Row="0" Grid.Column="0" IsChecked="{Binding IncludeCurrentTab, Mode=TwoWay}" FontSize="12" MinWidth="0"
-                              ToolTipService.ToolTip="The file open in the active tab (with unsaved edits, if any)">
-                        <TextBlock Text="{Binding CurrentTabLabel}" TextTrimming="CharacterEllipsis" />
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <CheckBox IsChecked="{Binding IncludeSnapList, Mode=TwoWay}" FontSize="12" MinWidth="0"
+                              ToolTipService.ToolTip="The text files in the Snap List (folders, binary files and files over 5 MB are skipped)">
+                        <TextBlock Text="{Binding SnapListLabel}" />
                     </CheckBox>
+                    <CheckBox IsChecked="{Binding IncludeFolderList, Mode=TwoWay}" FontSize="12" MinWidth="0"
+                              ToolTipService.ToolTip="Only names, sizes and dates of the active tab's folder (no file contents)">
+                        <TextBlock Text="Folder List" />
+                    </CheckBox>
+                </StackPanel>
 
-                    <DropDownButton Grid.Row="0" Grid.Column="1" x:Name="ExtraTabsButton" Padding="8,2" FontSize="11" VerticalAlignment="Center"
-                                    ToolTipService.ToolTip="Add the files open in other tabs (to compare them)">
-                        <TextBlock Text="{Binding ExtraTabsLabel}" />
-                        <DropDownButton.Flyout>
-                            <MenuFlyout x:Name="ExtraTabsMenu" Placement="BottomEdgeAlignedRight" Opening="ExtraTabsMenu_Opening" />
-                        </DropDownButton.Flyout>
-                    </DropDownButton>
-
-                    <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="12">
-                        <CheckBox IsChecked="{Binding IncludeSnapList, Mode=TwoWay}" FontSize="12" MinWidth="0"
-                                  ToolTipService.ToolTip="The text files in the Snap List (folders, binary files and files over 5 MB are skipped)">
-                            <TextBlock Text="{Binding SnapListLabel}" />
-                        </CheckBox>
-                        <CheckBox IsChecked="{Binding IncludeFolderList, Mode=TwoWay}" FontSize="12" MinWidth="0"
-                                  ToolTipService.ToolTip="Only names, sizes and dates of the active tab's folder (no file contents)">
-                            <TextBlock Text="Folder List" />
-                        </CheckBox>
-                    </StackPanel>
-                </Grid>
+                <!-- Tabs with an open file: the current one is ticked, tick more to compare (5 rows, then scroll) -->
+                <Border BorderBrush="{ThemeResource AppBorderBrush}" BorderThickness="1" CornerRadius="4" Margin="0,2,0,0"
+                        Visibility="{Binding HasTabItems, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <ScrollViewer MaxHeight="152" VerticalScrollBarVisibility="Visible" HorizontalScrollBarVisibility="Disabled">
+                        <ItemsControl ItemsSource="{Binding TabItems}" Padding="6,1,14,1">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}" MinWidth="0" MinHeight="30" Padding="6,0,0,0"
+                                              HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                              ToolTipService.ToolTip="{Binding ToolTip}">
+                                        <Grid ColumnSpacing="8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="{Binding Title}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="1" Text="{Binding FileName}" FontSize="12" Opacity="0.7"
+                                                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                            <Border Grid.Column="2" Background="{ThemeResource AppAccentSubtleBrush}" CornerRadius="8" Padding="6,0"
+                                                    VerticalAlignment="Center"
+                                                    Visibility="{Binding IsActive, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                <TextBlock Text="current" FontSize="10" Foreground="{ThemeResource AppAccentBrush}" />
+                                            </Border>
+                                        </Grid>
+                                    </CheckBox>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Border>
+                <TextBlock Text="No tab has a file open." FontSize="11" Opacity="0.6" Margin="2,2,0,0"
+                           Visibility="{Binding HasTabItems, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=inverse}" />
             </StackPanel>
         </Border>
 
@@ -214,7 +224,7 @@
         <StackPanel Grid.Row="2" x:Name="QuickActionsPanel" Orientation="Horizontal" Spacing="6" Padding="0,2,0,8"
                     BorderBrush="{ThemeResource AppBorderBrush}" BorderThickness="0,0,0,1">
             <Button Style="{StaticResource AiPillButtonStyle}" Content="Compare Tabs" Tag="Compare Tabs" Click="QuickAction_Click"
-                    ToolTipService.ToolTip="Compare the file of this tab with the other tabs" />
+                    ToolTipService.ToolTip="Compare the ticked tabs (all tabs with a file, if fewer than two are ticked)" />
             <Button Style="{StaticResource AiPillButtonStyle}" Content="Explain" Tag="Explain" Click="QuickAction_Click" />
             <Button Style="{StaticResource AiPillButtonStyle}" Content="Find Bugs" Tag="Find Bugs" Click="QuickAction_Click" />
             <Button Style="{StaticResource AiPillButtonStyle}" Content="Summarize" Tag="Summarize" Click="QuickAction_Click" />

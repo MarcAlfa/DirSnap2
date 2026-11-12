@@ -148,28 +148,6 @@ public sealed partial class AiChatPanel : UserControl
 
     // ==================== CONTEXT ====================
 
-    private void ExtraTabsMenu_Opening(object sender, object e)
-    {
-        ExtraTabsMenu.Items.Clear();
-        if (_vm == null)
-            return;
-
-        var tabs = _vm.GetOtherTabs().ToList();
-        if (tabs.Count == 0)
-        {
-            ExtraTabsMenu.Items.Add(new MenuFlyoutItem { Text = "No other tab has a file open", IsEnabled = false });
-            return;
-        }
-
-        foreach (var (tab, label, selected) in tabs)
-        {
-            var item = new ToggleMenuFlyoutItem { Text = label, IsChecked = selected };
-            var captured = tab;
-            item.Click += (s, _) => _vm.SetExtraTab(captured, ((ToggleMenuFlyoutItem)s).IsChecked);
-            ExtraTabsMenu.Items.Add(item);
-        }
-    }
-
     private void QuickAction_Click(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement { Tag: string label })

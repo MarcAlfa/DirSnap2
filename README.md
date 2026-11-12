@@ -2,7 +2,7 @@
 
 **DirSnap 2** is a fast Windows 11 file browser with a built-in text preview and editor, made for working with folders full of notes, scripts and code (Markdown, PL/SQL, Python, JavaScript...). It is written in **C# / .NET 8 / WinUI 3** (Windows App SDK, unpackaged) and replaces the Python/Tkinter DirSnap v1.
 
-- **Current version**: `0.2.0` (single source: `AppConstants.AppVersion` in `AppConstants.cs`)
+- **Current version**: `0.2.1` (single source: `AppConstants.AppVersion` in `AppConstants.cs`)
 - **History**: [CHANGELOG.md](CHANGELOG.md) · **Next ideas**: [TODO.md](TODO.md)
 - **UI language**: English
 - **License**: [MIT](LICENSE)
@@ -78,7 +78,7 @@ A global "basket" of files and folders, shared by all tabs: add items with the `
 
 A chat about your files (`✨ AI` button or `Ctrl+I`), as a flyout or detached into a floating window that remembers its place. Nothing is sent unless you tick it: the file of the current tab (unsaved edits included), files of other tabs (to compare them), the Snap List files, or only the names of the current folder. An unchanged context is not sent again in the same chat, and a size limit stops oversized requests.
 
-- **Providers**: Google Gemini, OpenAI, Anthropic Claude and any OpenAI-compatible server (Ollama, Groq, OpenRouter, DeepSeek), with streaming replies. Model names are free text.
+- **Providers**: Google Gemini, OpenAI, Anthropic Claude, Moonshot AI (Kimi) and any OpenAI-compatible server (Ollama, Groq, OpenRouter, DeepSeek), with streaming replies. Model names are free text.
 - **Quick actions**: *Compare Tabs*, *Explain*, *Find Bugs*, *Summarize*.
 - **Replies**: copy, save as a timestamped `.md` in the current folder, or *Send to Editor* (replace or append, unsaved until `Ctrl+S`; a reply with one code block sends only the code). The whole chat can be exported as `.md`.
 - API keys are stored encrypted for your Windows user (DPAPI). The chat lives in memory only.
