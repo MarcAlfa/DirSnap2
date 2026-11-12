@@ -57,6 +57,11 @@ public static class ShortcutsView
             new Shortcut("Enter / Shift + Enter", "Next / previous match (find box)"),
             new Shortcut("Esc", "Close the find bar"),
         }),
+        ("AI Assistant", new[]
+        {
+            new Shortcut("Ctrl + I", "Open the AI Assistant (or bring its detached window to the front)"),
+            new Shortcut("Enter / Shift + Enter", "Send the question / new line (chat input)"),
+        }),
         ("Snap List", new[]
         {
             new Shortcut("Del", "Remove the selected items"),

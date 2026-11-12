@@ -28,3 +28,6 @@ config.json
 
 # Release output (Publish_DirSnap2.bat)
 publish/
+
+# Local notes for Claude Code (not shared)
+CLAUDE.local.md

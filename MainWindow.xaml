@@ -87,6 +87,8 @@
                     <ColumnDefinition Width="Auto" />
                     <!-- Snap List Cart Button -->
                     <ColumnDefinition Width="Auto" />
+                    <!-- AI Assistant Button -->
+                    <ColumnDefinition Width="Auto" />
                     <!-- Theme & Settings -->
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
@@ -359,8 +361,32 @@
                     </Button.Flyout>
                 </Button>
 
+                <!-- ==================== AI ASSISTANT WIDGET ==================== -->
+                <!-- The flyout is opened from code: once detached, the button brings the window to the front -->
+                <Button Grid.Column="5" x:Name="AiAssistantWidgetButton"
+                        Click="AiAssistantWidgetButton_Click"
+                        ToolTipService.ToolTip="Open AI Assistant (Ctrl+I)"
+                        Padding="10,5">
+                    <TextBlock Text="✨ AI" FontWeight="SemiBold" FontSize="12" />
+                    <FlyoutBase.AttachedFlyout>
+                        <Flyout x:Name="AiChatFlyout" Placement="BottomEdgeAlignedRight" Opened="AiChatFlyout_Opened">
+                            <Flyout.FlyoutPresenterStyle>
+                                <Style TargetType="FlyoutPresenter">
+                                    <Setter Property="MaxWidth" Value="520" />
+                                    <Setter Property="MaxHeight" Value="720" />
+                                    <Setter Property="Padding" Value="14,12" />
+                                </Style>
+                            </Flyout.FlyoutPresenterStyle>
+                            <views:AiChatPanel x:Name="FlyoutAiChatPanel" Width="460" Height="580"
+                                               DataContext="{Binding AiChat}"
+                                               DetachRequested="FlyoutAiChatPanel_DetachRequested"
+                                               SettingsRequested="AiChatPanel_SettingsRequested" />
+                        </Flyout>
+                    </FlyoutBase.AttachedFlyout>
+                </Button>
+
                 <!-- ==================== THEME & SETTINGS BUTTON ==================== -->
-                <Button Grid.Column="5" Click="SettingsButton_Click" Padding="8,4" ToolTipService.ToolTip="Settings &amp; About">
+                <Button Grid.Column="6" Click="SettingsButton_Click" Padding="8,4" ToolTipService.ToolTip="Settings &amp; About">
                     <FontIcon Glyph="&#xE713;" FontSize="12" />
                 </Button>
             </Grid>

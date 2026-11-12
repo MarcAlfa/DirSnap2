@@ -1,0 +1,277 @@
+<UserControl
+    x:Class="DirSnap2.Views.AiChatPanel"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:converters="using:DirSnap2.Converters"
+    xmlns:views="using:DirSnap2.Views"
+    mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+
+        <Style x:Key="AiPillButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+            <Setter Property="Padding" Value="10,3" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="CornerRadius" Value="12" />
+        </Style>
+
+        <Style x:Key="AiBubbleActionStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+            <Setter Property="Padding" Value="6,2" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+
+        <!-- User question: right aligned, accent tint -->
+        <DataTemplate x:Key="AiUserTemplate">
+            <Border HorizontalAlignment="Right" MaxWidth="560" Margin="40,4,0,4"
+                    Background="{ThemeResource AppAccentSubtleBrush}"
+                    BorderBrush="{ThemeResource AppAccentBrush}" BorderThickness="1"
+                    CornerRadius="10,10,2,10" Padding="10,7">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="{Binding Content}" TextWrapping="Wrap" IsTextSelectionEnabled="True" FontSize="12.5" />
+                    <TextBlock Text="{Binding ContextSummary}" FontSize="10.5" Opacity="0.75"
+                               Visibility="{Binding HasContextSummary, Converter={StaticResource BoolToVisibilityConverter}}" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <!-- Assistant reply: left aligned, surface card, actions in the footer -->
+        <DataTemplate x:Key="AiAssistantTemplate">
+            <Border HorizontalAlignment="Stretch" Margin="0,4,24,4"
+                    Background="{ThemeResource AppSurfaceBrush}"
+                    BorderBrush="{ThemeResource AppBorderBrush}" BorderThickness="1"
+                    CornerRadius="10,10,10,2" Padding="10,7,10,4">
+                <StackPanel Spacing="4">
+                    <StackPanel Orientation="Horizontal" Spacing="6"
+                                Visibility="{Binding ShowThinking, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <ProgressRing IsActive="{Binding ShowThinking}" Width="14" Height="14" />
+                        <TextBlock Text="Thinking…" FontSize="12" Opacity="0.7" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding Content}" TextWrapping="Wrap" IsTextSelectionEnabled="True"
+                               FontFamily="Segoe UI" FontSize="12.5" />
+                    <StackPanel Orientation="Horizontal" Spacing="2" Margin="-6,2,0,0"
+                                Visibility="{Binding ShowActions, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <Button Style="{StaticResource AiBubbleActionStyle}" Click="CopyReply_Click" Tag="{Binding}"
+                                ToolTipService.ToolTip="Copy the reply to the clipboard">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <FontIcon Glyph="&#xE8C8;" FontSize="11" />
+                                <TextBlock Text="Copy" />
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource AiBubbleActionStyle}" Click="SaveReply_Click" Tag="{Binding}"
+                                ToolTipService.ToolTip="Save as a timestamped .md file in the active tab's folder and open it">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <FontIcon Glyph="&#xE74E;" FontSize="11" />
+                                <TextBlock Text="Save as .md" />
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource AiBubbleActionStyle}" Click="SendToEditor_Click" Tag="{Binding}"
+                                ToolTipService.ToolTip="Put the reply in the active tab's editor (unsaved: review it, then Ctrl+S). A reply with one code block sends only the code.">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <FontIcon Glyph="&#xE70F;" FontSize="11" />
+                                <TextBlock Text="Send to Editor" />
+                                <FontIcon Glyph="&#xE70D;" FontSize="8" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <!-- Error reply -->
+        <DataTemplate x:Key="AiErrorTemplate">
+            <Border HorizontalAlignment="Stretch" Margin="0,4,24,4"
+                    BorderBrush="{ThemeResource SystemFillColorCriticalBrush}" BorderThickness="1"
+                    Background="{ThemeResource SystemFillColorCriticalBackgroundBrush}"
+                    CornerRadius="10,10,10,2" Padding="10,7">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon Glyph="&#xE783;" FontSize="13" Foreground="{ThemeResource SystemFillColorCriticalBrush}" VerticalAlignment="Top" Margin="0,2,0,0" />
+                    <TextBlock Text="{Binding Content}" TextWrapping="Wrap" IsTextSelectionEnabled="True" FontSize="12.5" MaxWidth="480" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <views:AiMessageTemplateSelector x:Key="AiMessageTemplateSelector"
+                                         UserTemplate="{StaticResource AiUserTemplate}"
+                                         AssistantTemplate="{StaticResource AiAssistantTemplate}"
+                                         ErrorTemplate="{StaticResource AiErrorTemplate}" />
+    </UserControl.Resources>
+
+    <Grid RowSpacing="0">
+        <Grid.RowDefinitions>
+            <!-- 0: Header -->
+            <RowDefinition Height="Auto" />
+            <!-- 1: Context selector -->
+            <RowDefinition Height="Auto" />
+            <!-- 2: Quick actions -->
+            <RowDefinition Height="Auto" />
+            <!-- 3: Messages -->
+            <RowDefinition Height="*" />
+            <!-- 4: Status / warnings -->
+            <RowDefinition Height="Auto" />
+            <!-- 5: Input -->
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- ==================== HEADER ==================== -->
+        <Grid Grid.Row="0" x:Name="HeaderGrid" Padding="0,0,0,8" ColumnSpacing="6"
+              BorderBrush="{ThemeResource AppBorderBrush}" BorderThickness="0,0,0,1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0" Text="✨ AI Assistant" FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center" />
+
+            <Button Grid.Column="1" x:Name="ModelBadgeButton" Click="ModelBadge_Click"
+                    HorizontalAlignment="Left" Margin="4,0,0,0" Padding="8,2" CornerRadius="10"
+                    Background="{ThemeResource AppAccentSubtleBrush}" BorderThickness="0"
+                    ToolTipService.ToolTip="{Binding ModelBadgeToolTip}">
+                <StackPanel Orientation="Horizontal" Spacing="5">
+                    <TextBlock Text="{Binding ModelBadgeText}" FontSize="10.5" FontWeight="SemiBold"
+                               Foreground="{ThemeResource AppAccentBrush}" TextTrimming="CharacterEllipsis" MaxWidth="170" />
+                    <FontIcon Glyph="&#xE713;" FontSize="10" Foreground="{ThemeResource AppAccentBrush}" />
+                </StackPanel>
+            </Button>
+
+            <Button Grid.Column="2" Click="ExportChat_Click" Padding="6,3" FontSize="11"
+                    IsEnabled="{Binding HasMessages}"
+                    ToolTipService.ToolTip="Export the whole chat as a .md file">
+                <FontIcon Glyph="&#xEDE1;" FontSize="11" />
+            </Button>
+
+            <Button Grid.Column="3" Click="NewChat_Click" Padding="6,3" FontSize="11"
+                    ToolTipService.ToolTip="New chat (clears the conversation)">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <FontIcon Glyph="&#xE710;" FontSize="10" />
+                    <TextBlock Text="New" />
+                </StackPanel>
+            </Button>
+
+            <!-- Flyout: Detach. Window: Pin on top (toggled by the host) -->
+            <Button Grid.Column="4" x:Name="DetachButton" Click="Detach_Click" Padding="6,3" FontSize="11"
+                    ToolTipService.ToolTip="Detach into a floating window">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <FontIcon Glyph="&#xE77A;" FontSize="11" />
+                    <TextBlock Text="Detach" />
+                </StackPanel>
+            </Button>
+            <ToggleButton Grid.Column="4" x:Name="PinToggle" Visibility="Collapsed" IsChecked="True"
+                          Click="PinToggle_Click" Padding="6,3" FontSize="11"
+                          ToolTipService.ToolTip="Keep the window always on top">
+                <FontIcon Glyph="&#xE718;" FontSize="11" />
+            </ToggleButton>
+        </Grid>
+
+        <!-- ==================== CONTEXT SELECTOR ==================== -->
+        <Border Grid.Row="1" Padding="0,6,0,4">
+            <StackPanel Spacing="2">
+                <TextBlock Text="Send with the question:" FontSize="10.5" Opacity="0.7" />
+                <Grid ColumnSpacing="8" RowSpacing="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <CheckBox Grid.Row="0" Grid.Column="0" IsChecked="{Binding IncludeCurrentTab, Mode=TwoWay}" FontSize="12" MinWidth="0"
+                              ToolTipService.ToolTip="The file open in the active tab (with unsaved edits, if any)">
+                        <TextBlock Text="{Binding CurrentTabLabel}" TextTrimming="CharacterEllipsis" />
+                    </CheckBox>
+
+                    <DropDownButton Grid.Row="0" Grid.Column="1" x:Name="ExtraTabsButton" Padding="8,2" FontSize="11" VerticalAlignment="Center"
+                                    ToolTipService.ToolTip="Add the files open in other tabs (to compare them)">
+                        <TextBlock Text="{Binding ExtraTabsLabel}" />
+                        <DropDownButton.Flyout>
+                            <MenuFlyout x:Name="ExtraTabsMenu" Placement="BottomEdgeAlignedRight" Opening="ExtraTabsMenu_Opening" />
+                        </DropDownButton.Flyout>
+                    </DropDownButton>
+
+                    <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="12">
+                        <CheckBox IsChecked="{Binding IncludeSnapList, Mode=TwoWay}" FontSize="12" MinWidth="0"
+                                  ToolTipService.ToolTip="The text files in the Snap List (folders, binary files and files over 5 MB are skipped)">
+                            <TextBlock Text="{Binding SnapListLabel}" />
+                        </CheckBox>
+                        <CheckBox IsChecked="{Binding IncludeFolderList, Mode=TwoWay}" FontSize="12" MinWidth="0"
+                                  ToolTipService.ToolTip="Only names, sizes and dates of the active tab's folder (no file contents)">
+                            <TextBlock Text="Folder List" />
+                        </CheckBox>
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- ==================== QUICK ACTIONS ==================== -->
+        <StackPanel Grid.Row="2" x:Name="QuickActionsPanel" Orientation="Horizontal" Spacing="6" Padding="0,2,0,8"
+                    BorderBrush="{ThemeResource AppBorderBrush}" BorderThickness="0,0,0,1">
+            <Button Style="{StaticResource AiPillButtonStyle}" Content="Compare Tabs" Tag="Compare Tabs" Click="QuickAction_Click"
+                    ToolTipService.ToolTip="Compare the file of this tab with the other tabs" />
+            <Button Style="{StaticResource AiPillButtonStyle}" Content="Explain" Tag="Explain" Click="QuickAction_Click" />
+            <Button Style="{StaticResource AiPillButtonStyle}" Content="Find Bugs" Tag="Find Bugs" Click="QuickAction_Click" />
+            <Button Style="{StaticResource AiPillButtonStyle}" Content="Summarize" Tag="Summarize" Click="QuickAction_Click" />
+        </StackPanel>
+
+        <!-- ==================== MESSAGES ==================== -->
+        <Grid Grid.Row="3">
+            <ScrollViewer x:Name="MessagesScroller" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,6,8,6">
+                <ItemsControl x:Name="MessagesList" ItemsSource="{Binding Messages}"
+                              ItemTemplateSelector="{StaticResource AiMessageTemplateSelector}" />
+            </ScrollViewer>
+
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="6" MaxWidth="320"
+                        Visibility="{Binding HasMessages, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=inverse}">
+                <TextBlock Text="✨" FontSize="28" HorizontalAlignment="Center" />
+                <TextBlock Text="Ask about the files you choose above." FontSize="12" HorizontalAlignment="Center" Opacity="0.8" />
+                <TextBlock Text="Nothing is sent to the AI provider except your question and the sources you tick."
+                           FontSize="11" TextWrapping="Wrap" TextAlignment="Center" Opacity="0.6" />
+            </StackPanel>
+        </Grid>
+
+        <!-- ==================== STATUS ==================== -->
+        <Border Grid.Row="4" Padding="8,5" Margin="0,4,0,0" CornerRadius="4"
+                Background="{ThemeResource SystemFillColorCautionBackgroundBrush}"
+                Visibility="{Binding HasStatus, Converter={StaticResource BoolToVisibilityConverter}}">
+            <TextBlock Text="{Binding StatusText}" FontSize="11" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+        </Border>
+
+        <!-- ==================== INPUT ==================== -->
+        <Grid Grid.Row="5" Padding="0,8,0,0" ColumnSpacing="6" RowSpacing="3">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBox Grid.Row="0" Grid.Column="0" x:Name="InputBox"
+                     Text="{Binding InputText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                     PlaceholderText="Ask about selected files... (Enter to send, Shift+Enter for a new line)"
+                     AcceptsReturn="True" TextWrapping="Wrap" MinHeight="60" MaxHeight="160" FontSize="12.5"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     PreviewKeyDown="InputBox_PreviewKeyDown" />
+
+            <Button Grid.Row="0" Grid.Column="1" x:Name="SendButton" Click="Send_Click" VerticalAlignment="Bottom"
+                    Padding="12,8" Style="{StaticResource AppAccentButtonStyle}"
+                    ToolTipService.ToolTip="Send (Enter) / Stop the reply">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <FontIcon Glyph="{Binding SendButtonGlyph}" FontSize="12" Foreground="White" />
+                    <TextBlock Text="{Binding SendButtonText}" FontWeight="SemiBold" Foreground="White" />
+                </StackPanel>
+            </Button>
+
+            <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Text="{Binding ContextInfoText}" FontSize="10.5" Opacity="0.7"
+                       TextTrimming="CharacterEllipsis" />
+        </Grid>
+    </Grid>
+</UserControl>

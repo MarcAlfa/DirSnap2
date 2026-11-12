@@ -119,6 +119,35 @@ public sealed class AppConfig
     [JsonPropertyName("file_search_match_case")]
     public bool FileSearchMatchCase { get; set; }
 
+    // ==================== AI ASSISTANT ====================
+
+    /// <summary>"gemini", "openai", "anthropic" or "openai_compatible" (Ollama, Groq, OpenRouter, DeepSeek...).</summary>
+    [JsonPropertyName("ai_provider")]
+    public string AiProvider { get; set; } = "gemini";
+
+    /// <summary>Model name per provider (key = provider id).</summary>
+    [JsonPropertyName("ai_models")]
+    public Dictionary<string, string> AiModels { get; set; } = new();
+
+    /// <summary>Base URL of the OpenAI-compatible provider (e.g. http://localhost:11434/v1 for Ollama).</summary>
+    [JsonPropertyName("ai_base_url")]
+    public string AiBaseUrl { get; set; } = "http://localhost:11434/v1";
+
+    /// <summary>API keys per provider, encrypted with Windows DPAPI (current user), Base64. Never plain text.</summary>
+    [JsonPropertyName("ai_api_keys_encrypted")]
+    public Dictionary<string, string> AiApiKeysEncrypted { get; set; } = new();
+
+    /// <summary>Safety cap on the size of the context (files) sent with a question.</summary>
+    [JsonPropertyName("ai_max_context_chars")]
+    public int AiMaxContextChars { get; set; } = 120000;
+
+    /// <summary>Position, size and monitor of the detached AI Assistant window (null until it is first closed).</summary>
+    [JsonPropertyName("ai_window")]
+    public WindowPlacement? AiWindow { get; set; }
+
+    [JsonPropertyName("ai_window_pinned")]
+    public bool AiWindowPinned { get; set; } = true;
+
     [JsonPropertyName("splitter_distance")]
     public double SplitterDistance { get; set; } = 450;
 

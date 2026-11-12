@@ -2,7 +2,7 @@
 
 **DirSnap 2** is a fast Windows 11 file browser with a built-in text preview and editor, made for working with folders full of notes, scripts and code (Markdown, PL/SQL, Python, JavaScript...). It is written in **C# / .NET 8 / WinUI 3** (Windows App SDK, unpackaged) and replaces the Python/Tkinter DirSnap v1.
 
-- **Current version**: `0.1.4` (single source: `AppConstants.AppVersion` in `AppConstants.cs`)
+- **Current version**: `0.2.0` (single source: `AppConstants.AppVersion` in `AppConstants.cs`)
 - **History**: [CHANGELOG.md](CHANGELOG.md) · **Next ideas**: [TODO.md](TODO.md)
 - **UI language**: English
 - **License**: [MIT](LICENSE)
@@ -28,7 +28,7 @@ Each **tab** (up to 10, reorderable, restored at startup) has two resizable pane
 - **Left**: the file list of the current folder, with the *Folder contents* panel under it.
 - **Right**: the preview / editor of the selected file, with the find bar, the *Outline* panel and a footer (path, line counter, encoding, line endings).
 
-On top: address bar, back / forward / up, drives, favorites, the global **Snap List** and Settings. Panel sizes, the open file, sort and filter of each tab are saved in `config.json`.
+On top: address bar, back / forward / up, drives, favorites, the global **Snap List**, the **AI Assistant** and Settings. Panel sizes, the open file, sort and filter of each tab are saved in `config.json`.
 
 ## File list
 
@@ -74,6 +74,15 @@ Under the list: the files and subfolders of the folder **selected** in the list,
 
 A global "basket" of files and folders, shared by all tabs: add items with the `+` button on each row, `Ins` or the right-click menu (multiple selection supported), or all folders/files of the current folder at once. Export with full path or name only, with or without extension: clipboard, Notepad, `.txt`, `.csv`. It can be detached into a floating always-on-top window.
 
+## AI Assistant
+
+A chat about your files (`✨ AI` button or `Ctrl+I`), as a flyout or detached into a floating window that remembers its place. Nothing is sent unless you tick it: the file of the current tab (unsaved edits included), files of other tabs (to compare them), the Snap List files, or only the names of the current folder. An unchanged context is not sent again in the same chat, and a size limit stops oversized requests.
+
+- **Providers**: Google Gemini, OpenAI, Anthropic Claude and any OpenAI-compatible server (Ollama, Groq, OpenRouter, DeepSeek), with streaming replies. Model names are free text.
+- **Quick actions**: *Compare Tabs*, *Explain*, *Find Bugs*, *Summarize*.
+- **Replies**: copy, save as a timestamped `.md` in the current folder, or *Send to Editor* (replace or append, unsaved until `Ctrl+S`; a reply with one code block sends only the code). The whole chat can be exported as `.md`.
+- API keys are stored encrypted for your Windows user (DPAPI). The chat lives in memory only.
+
 ## Keyboard shortcuts
 
 `F1` shows the full list (also from Settings → *Keyboard Shortcuts*). The main ones:
@@ -87,10 +96,11 @@ A global "basket" of files and folders, shared by all tabs: add items with the `
 | `Ctrl+T` / `Ctrl+W` / `Ctrl+Tab` | New / close / next tab |
 | `Ctrl+E` / `Ctrl+S` / `Ctrl+G` | Edit mode / save / go to line |
 | `Ctrl+X` / `Ctrl+C` / `Ctrl+V`, `F2`, `Del`, `Ins` | Cut / copy / paste, rename, Recycle Bin, Snap List |
+| `Ctrl+I` | AI Assistant |
 
 ## Settings
 
-Dark / light theme, accent color, editor extensions (the files that open in the preview, can be edited and are searched), preview font size, Snap List defaults. Window position (multi-monitor), tabs and favorites are restored at startup. Only one instance runs at a time: launching it again brings the open window to the front.
+Dark / light theme, accent color, editor extensions (the files that open in the preview, can be edited and are searched), preview font size, Snap List defaults, AI provider / model / API key (with *Test Connection*). Window position (multi-monitor), tabs and favorites are restored at startup. Only one instance runs at a time: launching it again brings the open window to the front.
 
 ---
 
@@ -120,6 +130,6 @@ Then start `Start_DirSnap2.bat` (it runs `bin\x64\Debug\net8.0-windows10.0.26100
 | Folder | Content |
 |---|---|
 | `Models` | Config (`AppConfig`), list items (`FSItem`), tree nodes, Snap List items, search results |
-| `Services` | File system scan, text files (encoding/line endings), config, Snap List, outline parser, search in files, folder totals, Recycle Bin and shell copy/move, theme, window placement, logging |
-| `ViewModels` | `MainViewModel` (tabs, Snap List, address bar) and `WorkspaceTabViewModel` (one tab: folder, list, open file) |
-| `Views` | `WorkspaceTabView` (split in partial files by feature: file actions, find & outline, folder contents, search in files, folder info, line navigation), Settings, About, Snap List window, shortcuts |
+| `Services` | File system scan, text files (encoding/line endings), config, Snap List, outline parser, search in files, folder totals, Recycle Bin and shell copy/move, AI providers and context, theme, window placement, logging |
+| `ViewModels` | `MainViewModel` (tabs, Snap List, address bar), `WorkspaceTabViewModel` (one tab: folder, list, open file) and `AiChatViewModel` (AI chat) |
+| `Views` | `WorkspaceTabView` (split in partial files by feature: file actions, find & outline, folder contents, search in files, folder info, line navigation), Settings, About, Snap List window, AI chat panel and window, shortcuts |

@@ -46,6 +46,20 @@ public sealed class SettingsDialog : ContentDialog
     private readonly TextBlock _aboutTitleText;
     private readonly TextBlock _aboutCopyText;
 
+    // AI Assistant section (texts recolored on theme change)
+    private readonly List<TextBlock> _aiPrimaryTexts = new();
+    private readonly List<TextBlock> _aiSecondaryTexts = new();
+    private ComboBox? _aiProviderBox;
+    private ComboBox? _aiModelBox;
+    private TextBox? _aiBaseUrlBox;
+    private StackPanel? _aiBaseUrlRow;
+    private PasswordBox? _aiKeyBox;
+    private Button? _aiRemoveKeyBtn;
+    private Button? _aiTestBtn;
+    private TextBlock? _aiTestResult;
+    private ProgressRing? _aiTestRing;
+    private NumberBox? _aiMaxCharsBox;
+
     public SettingsDialog(
         IConfigService configService,
         IThemeService themeService,
@@ -374,6 +388,9 @@ public sealed class SettingsDialog : ContentDialog
         snapPanel.Children.Add(_extCheck);
         rootStack.Children.Add(snapPanel);
 
+        // ==================== AI ASSISTANT ====================
+        BuildAiSection(rootStack);
+
         // ==================== KEYBOARD SHORTCUTS ====================
         // A Flyout (not a second ContentDialog: only one can be open at a time)
         var shortcutsBtn = new Button
@@ -496,6 +513,9 @@ public sealed class SettingsDialog : ContentDialog
         _aboutTitleText.Foreground = primaryBrush;
         _aboutCopyText.Foreground = secondaryBrush;
 
+        foreach (var t in _aiPrimaryTexts) t.Foreground = primaryBrush;
+        foreach (var t in _aiSecondaryTexts) t.Foreground = secondaryBrush;
+
         RefreshAccentSelectionRings();
         RebuildExtensionChips();
     }
@@ -540,6 +560,7 @@ public sealed class SettingsDialog : ContentDialog
         // Directly color Add and Details buttons with active accent
         if (_addBtn != null) _addBtn.Background = accentBrush;
         if (_openAboutBtn != null) _openAboutBtn.Background = accentBrush;
+        if (_aiTestBtn != null) _aiTestBtn.Background = accentBrush;
     }
 
     private static TextBlock CreateSectionHeader(string text)
@@ -688,6 +709,314 @@ public sealed class SettingsDialog : ContentDialog
             _configService.NotifyChanged();
             RebuildExtensionChips();
             _addExtensionBox.Text = string.Empty;
+        }
+    }
+
+    // ==================== AI ASSISTANT SECTION ====================
+
+    private TextBlock AiLabel(string text, bool secondary = false)
+    {
+        var tb = new TextBlock
+        {
+            Text = text,
+            FontSize = secondary ? 11 : 12,
+            FontWeight = secondary ? Microsoft.UI.Text.FontWeights.Normal : Microsoft.UI.Text.FontWeights.SemiBold,
+            TextWrapping = TextWrapping.Wrap,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        (secondary ? _aiSecondaryTexts : _aiPrimaryTexts).Add(tb);
+        return tb;
+    }
+
+    private static Grid AiRow(int extraColumns = 0)
+    {
+        var g = new Grid { ColumnSpacing = 10 };
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(90) });
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        for (int i = 0; i < extraColumns; i++)
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        return g;
+    }
+
+    private void BuildAiSection(StackPanel rootStack)
+    {
+        var header = CreateSectionHeader("✨ AI Assistant");
+        _aiPrimaryTexts.Add(header);
+        rootStack.Children.Add(header);
+
+        var panel = new StackPanel { Spacing = 8, Margin = new Thickness(8, 0, 0, 0) };
+        panel.Children.Add(AiLabel(
+            "Only your question and the sources you tick in the chat are sent to the provider. " +
+            "API keys are stored encrypted for your Windows user (DPAPI), never in plain text.", secondary: true));
+
+        var config = _configService.Current;
+
+        // Provider
+        var providerRow = AiRow();
+        providerRow.Children.Add(AiLabel("Provider"));
+        _aiProviderBox = new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch, FontSize = 12 };
+        foreach (var p in AiProviders.All)
+            _aiProviderBox.Items.Add(p.DisplayName);
+        _aiProviderBox.SelectedIndex = Array.FindIndex(AiProviders.All, p => p.Id == AiProviders.Get(config.AiProvider).Id);
+        Grid.SetColumn(_aiProviderBox, 1);
+        providerRow.Children.Add(_aiProviderBox);
+        panel.Children.Add(providerRow);
+
+        // Model (free text with suggestions)
+        var modelRow = AiRow();
+        modelRow.Children.Add(AiLabel("Model"));
+        _aiModelBox = new ComboBox { IsEditable = true, HorizontalAlignment = HorizontalAlignment.Stretch, FontSize = 12 };
+        ToolTipService.SetToolTip(_aiModelBox, "Pick a suggestion or type any model name supported by the provider");
+        _aiModelBox.SelectionChanged += (_, _) =>
+        {
+            if (_aiModelBox.SelectedItem is string m)
+                SaveAiModel(m);
+        };
+        _aiModelBox.TextSubmitted += (_, args) => SaveAiModel(args.Text);
+        _aiModelBox.LostFocus += (_, _) => SaveAiModel(_aiModelBox.Text);
+        Grid.SetColumn(_aiModelBox, 1);
+        modelRow.Children.Add(_aiModelBox);
+        panel.Children.Add(modelRow);
+
+        // Base URL (OpenAI-compatible only)
+        _aiBaseUrlRow = new StackPanel { Spacing = 2 };
+        var urlGrid = AiRow();
+        urlGrid.Children.Add(AiLabel("Base URL"));
+        _aiBaseUrlBox = new TextBox { Text = config.AiBaseUrl, FontSize = 12, PlaceholderText = "http://localhost:11434/v1" };
+        _aiBaseUrlBox.LostFocus += (_, _) =>
+        {
+            _configService.Current.AiBaseUrl = _aiBaseUrlBox.Text.Trim();
+            _configService.Save();
+        };
+        Grid.SetColumn(_aiBaseUrlBox, 1);
+        urlGrid.Children.Add(_aiBaseUrlBox);
+        _aiBaseUrlRow.Children.Add(urlGrid);
+        var urlHelp = AiLabel("Ollama: http://localhost:11434/v1 · Groq: https://api.groq.com/openai/v1 · " +
+                              "OpenRouter: https://openrouter.ai/api/v1 · DeepSeek: https://api.deepseek.com/v1", secondary: true);
+        urlHelp.Margin = new Thickness(100, 0, 0, 0);
+        _aiBaseUrlRow.Children.Add(urlHelp);
+        panel.Children.Add(_aiBaseUrlRow);
+
+        // API key
+        var keyRow = AiRow(extraColumns: 1);
+        keyRow.Children.Add(AiLabel("API key"));
+        _aiKeyBox = new PasswordBox { FontSize = 12 };
+        _aiKeyBox.KeyDown += (_, ke) =>
+        {
+            if (ke.Key == Windows.System.VirtualKey.Enter)
+            {
+                SaveAiKeyFromBox();
+                ke.Handled = true;
+            }
+        };
+        _aiKeyBox.LostFocus += (_, _) => SaveAiKeyFromBox();
+        Grid.SetColumn(_aiKeyBox, 1);
+        keyRow.Children.Add(_aiKeyBox);
+        _aiRemoveKeyBtn = new Button { Content = "Remove", FontSize = 11, Padding = new Thickness(10, 4, 10, 4) };
+        ToolTipService.SetToolTip(_aiRemoveKeyBtn, "Delete the saved key of this provider");
+        _aiRemoveKeyBtn.Click += (_, _) =>
+        {
+            AiKeyStore.SetKey(_configService.Current, CurrentAiProvider.Id, null);
+            _configService.Save();
+            _aiKeyBox.Password = string.Empty;
+            RefreshAiSection();
+        };
+        Grid.SetColumn(_aiRemoveKeyBtn, 2);
+        keyRow.Children.Add(_aiRemoveKeyBtn);
+        panel.Children.Add(keyRow);
+
+        // Context limit
+        var limitRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
+        limitRow.Children.Add(AiLabel("Max context size (characters):"));
+        _aiMaxCharsBox = new NumberBox
+        {
+            Value = config.AiMaxContextChars > 0 ? config.AiMaxContextChars : 120000,
+            Minimum = 1000,
+            Maximum = 4000000,
+            SmallChange = 10000,
+            LargeChange = 50000,
+            SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Inline,
+            Width = 160,
+            FontSize = 12
+        };
+        _aiMaxCharsBox.ValueChanged += (sender, _) =>
+        {
+            if (double.IsNaN(sender.Value) || sender.Value < 1000)
+                return;
+            _configService.Current.AiMaxContextChars = (int)sender.Value;
+            _configService.Save();
+        };
+        limitRow.Children.Add(_aiMaxCharsBox);
+        panel.Children.Add(limitRow);
+        panel.Children.Add(AiLabel(
+            "Safety cap on the files sent with one question (about 4 characters per token). Above it the chat asks you to deselect something.",
+            secondary: true));
+
+        // Test connection
+        var testRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
+        _aiTestBtn = new Button
+        {
+            Style = AccentButtonStyle,
+            Content = "Test Connection",
+            Padding = new Thickness(14, 5, 14, 5),
+            FontSize = 12,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
+        };
+        _aiTestBtn.Click += async (_, _) => await TestAiConnectionAsync();
+        _aiTestRing = new ProgressRing { IsActive = false, Width = 16, Height = 16, Visibility = Visibility.Collapsed };
+        _aiTestResult = AiLabel(string.Empty, secondary: true);
+        _aiTestResult.MaxWidth = 420;
+        testRow.Children.Add(_aiTestBtn);
+        testRow.Children.Add(_aiTestRing);
+        testRow.Children.Add(_aiTestResult);
+        panel.Children.Add(testRow);
+
+        rootStack.Children.Add(panel);
+
+        _aiProviderBox.SelectionChanged += (_, _) =>
+        {
+            if (_aiProviderBox.SelectedIndex < 0)
+                return;
+            _configService.Current.AiProvider = AiProviders.All[_aiProviderBox.SelectedIndex].Id;
+            _configService.Save();
+            _aiKeyBox.Password = string.Empty;
+            _aiTestResult.Text = string.Empty;
+            RefreshAiSection();
+        };
+
+        RefreshAiSection();
+    }
+
+    private AiProviderInfo CurrentAiProvider => AiProviders.Get(_configService.Current.AiProvider);
+
+    /// <summary>Updates the AI controls for the selected provider.</summary>
+    private void RefreshAiSection()
+    {
+        if (_aiModelBox == null || _aiKeyBox == null || _aiBaseUrlRow == null || _aiRemoveKeyBtn == null)
+            return;
+
+        var provider = CurrentAiProvider;
+        var settings = AiKeyStore.ResolveSettings(_configService.Current);
+
+        _aiModelBox.Items.Clear();
+        foreach (var m in provider.SuggestedModels)
+            _aiModelBox.Items.Add(m);
+        ShowAiModel(settings.Model);
+
+        _aiBaseUrlRow.Visibility = provider.UsesBaseUrl ? Visibility.Visible : Visibility.Collapsed;
+
+        bool hasKey = AiKeyStore.HasKey(_configService.Current, provider.Id);
+        _aiKeyBox.PlaceholderText = hasKey
+            ? "Key saved (encrypted) - paste a new one to replace it"
+            : provider.RequiresApiKey ? "Paste your API key" : "Optional (not needed for local Ollama)";
+        _aiRemoveKeyBtn.IsEnabled = hasKey;
+    }
+
+    /// <summary>
+    /// Shows the saved model by selecting it. A name that is not among the suggestions (e.g. a local
+    /// Ollama model) is added at the top of the list: an editable ComboBox does not reliably show
+    /// Text set from code, a selected item always shows. Selection is applied again on Loaded.
+    /// </summary>
+    private void ShowAiModel(string model)
+    {
+        if (_aiModelBox == null || string.IsNullOrWhiteSpace(model))
+            return;
+
+        int index = _aiModelBox.Items.IndexOf(model);
+        if (index < 0)
+        {
+            _aiModelBox.Items.Insert(0, model);
+            index = 0;
+        }
+        _aiModelBox.SelectedIndex = index;
+
+        if (!_aiModelBox.IsLoaded)
+        {
+            void OnLoaded(object s, RoutedEventArgs e)
+            {
+                _aiModelBox.Loaded -= OnLoaded;
+                ShowAiModel(AiKeyStore.ResolveSettings(_configService.Current).Model);
+            }
+            _aiModelBox.Loaded += OnLoaded;
+        }
+    }
+
+    private void SaveAiModel(string? model)
+    {
+        model = model?.Trim();
+        if (string.IsNullOrEmpty(model))
+            return;
+        var id = CurrentAiProvider.Id;
+        if (_configService.Current.AiModels.TryGetValue(id, out var old) && old == model)
+            return;
+        _configService.Current.AiModels[id] = model;
+        _configService.Save();
+    }
+
+    private void SaveAiKeyFromBox()
+    {
+        if (_aiKeyBox == null || string.IsNullOrWhiteSpace(_aiKeyBox.Password))
+            return;
+        try
+        {
+            AiKeyStore.SetKey(_configService.Current, CurrentAiProvider.Id, _aiKeyBox.Password);
+            _configService.Save();
+            _aiKeyBox.Password = string.Empty;
+            if (_aiTestResult != null)
+                _aiTestResult.Text = "Key saved.";
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error($"[SettingsDialog] Cannot encrypt the API key: {ex.Message}", ex);
+            if (_aiTestResult != null)
+                _aiTestResult.Text = $"Cannot save the key: {ex.Message}";
+        }
+        RefreshAiSection();
+    }
+
+    private async Task TestAiConnectionAsync()
+    {
+        if (_aiTestBtn == null || _aiTestResult == null || _aiTestRing == null)
+            return;
+
+        // Pending edits count too: a key typed but not confirmed, a model typed in the box
+        SaveAiKeyFromBox();
+        if (_aiModelBox != null)
+            SaveAiModel(_aiModelBox.Text);
+        if (_aiBaseUrlBox != null)
+        {
+            _configService.Current.AiBaseUrl = _aiBaseUrlBox.Text.Trim();
+            _configService.Save();
+        }
+
+        _aiTestBtn.IsEnabled = false;
+        _aiTestRing.IsActive = true;
+        _aiTestRing.Visibility = Visibility.Visible;
+        // A local model (Ollama) can take a couple of minutes to load into memory the first time
+        bool local = CurrentAiProvider.UsesBaseUrl;
+        int timeoutSeconds = local ? 180 : 60;
+        _aiTestResult.Text = local
+            ? "Testing… (a local model may take 1-2 minutes to load the first time)"
+            : "Testing…";
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
+            var result = await new AiService().TestConnectionAsync(AiKeyStore.ResolveSettings(_configService.Current), cts.Token);
+            _aiTestResult.Text = "✔ " + result;
+        }
+        catch (OperationCanceledException)
+        {
+            _aiTestResult.Text = $"✖ No answer within {timeoutSeconds} seconds.";
+        }
+        catch (Exception ex)
+        {
+            _aiTestResult.Text = "✖ " + ex.Message;
+        }
+        finally
+        {
+            _aiTestBtn.IsEnabled = true;
+            _aiTestRing.IsActive = false;
+            _aiTestRing.Visibility = Visibility.Collapsed;
         }
     }
 

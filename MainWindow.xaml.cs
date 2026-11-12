@@ -5,6 +5,7 @@ using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.ApplicationModel.DataTransfer;
@@ -29,6 +30,7 @@ public sealed partial class MainWindow : Window
     private readonly IThemeService _themeService;
 
     private SnapListWindow? _detachedSnapListWindow;
+    private AiChatWindow? _detachedAiChatWindow;
 
     public MainWindow()
     {
@@ -60,6 +62,10 @@ public sealed partial class MainWindow : Window
         }
 
         Title = AppConstants.AppTitle;
+
+        // AI Assistant flyout panel (the detached window gets its own panel on the same ViewModel)
+        FlyoutAiChatPanel.DataContext = ViewModel.AiChat;
+        FlyoutAiChatPanel.HostWindow = this;
 
         // 3. Apply Mica Backdrop
         TryApplyMicaBackdrop();
@@ -174,6 +180,9 @@ public sealed partial class MainWindow : Window
             if (ViewModel.ActiveTab is { IsEditAllowed: true } tab)
                 tab.IsEditingEnabled = !tab.IsEditingEnabled;
         });
+
+        // AI Assistant
+        Add(VirtualKey.I, Ctrl, OpenAiAssistant);
 
         // Help
         Add(VirtualKey.F1, None, () => _ = ShowShortcutsAsync());
@@ -298,26 +307,8 @@ public sealed partial class MainWindow : Window
     /// <summary>Caption buttons follow the app theme (dark / light), with a soft hover like Windows 11.</summary>
     private void UpdateTitleBarColors()
     {
-        try
-        {
-            var tb = AppWindow.TitleBar;
-            bool dark = (Content as FrameworkElement)?.ActualTheme != ElementTheme.Light;
-            var fg = dark ? Colors.White : Windows.UI.Color.FromArgb(255, 0x1F, 0x23, 0x28);
-            var inactiveFg = dark ? Windows.UI.Color.FromArgb(255, 0x8A, 0x8A, 0x8A) : Windows.UI.Color.FromArgb(255, 0x8A, 0x8F, 0x98);
-
-            tb.ButtonBackgroundColor = Colors.Transparent;
-            tb.ButtonInactiveBackgroundColor = Colors.Transparent;
-            tb.ButtonForegroundColor = fg;
-            tb.ButtonInactiveForegroundColor = inactiveFg;
-            tb.ButtonHoverBackgroundColor = dark ? Windows.UI.Color.FromArgb(0x1A, 0xFF, 0xFF, 0xFF) : Windows.UI.Color.FromArgb(0x14, 0x00, 0x00, 0x00);
-            tb.ButtonHoverForegroundColor = fg;
-            tb.ButtonPressedBackgroundColor = dark ? Windows.UI.Color.FromArgb(0x2E, 0xFF, 0xFF, 0xFF) : Windows.UI.Color.FromArgb(0x24, 0x00, 0x00, 0x00);
-            tb.ButtonPressedForegroundColor = fg;
-        }
-        catch (Exception ex)
-        {
-            AppLogger.Warn($"[MainWindow] Title bar colors: {ex.Message}");
-        }
+        bool dark = (Content as FrameworkElement)?.ActualTheme != ElementTheme.Light;
+        TitleBarHelper.ApplyCaptionColors(AppWindow, dark);
     }
 
     private void TryApplyMicaBackdrop()
@@ -390,8 +381,11 @@ public sealed partial class MainWindow : Window
     {
         try
         {
-            // Close detached window if open
+            // Close detached windows if open
             _detachedSnapListWindow?.Close();
+            ViewModel.AiChat.Stop();
+            _detachedAiChatWindow?.SavePlacement();
+            _detachedAiChatWindow?.Close();
 
             // Save window placement, monitor index, and maximized state
             WindowPlacementService.SaveWindow(AppWindow, _configService.Current.Window);
@@ -689,12 +683,66 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    // ==================== AI ASSISTANT ====================
+
+    /// <summary>Toolbar button and Ctrl+I: the flyout, or the detached window when there is one.</summary>
+    private void OpenAiAssistant()
+    {
+        if (_detachedAiChatWindow != null)
+        {
+            _detachedAiChatWindow.Activate();
+            return;
+        }
+        FlyoutBase.ShowAttachedFlyout(AiAssistantWidgetButton);
+    }
+
+    private void AiAssistantWidgetButton_Click(object sender, RoutedEventArgs e) => OpenAiAssistant();
+
+    private void AiChatFlyout_Opened(object sender, object e)
+    {
+        ViewModel.AiChat.RefreshContextLabels();
+        FlyoutAiChatPanel.FocusInput();
+    }
+
+    private void FlyoutAiChatPanel_DetachRequested(object? sender, EventArgs e)
+    {
+        AiChatFlyout.Hide();
+
+        if (_detachedAiChatWindow == null)
+        {
+            _detachedAiChatWindow = new AiChatWindow(
+                ViewModel.AiChat,
+                _configService,
+                _themeService.CurrentTheme,
+                AppWindow,
+                () => _ = OpenSettingsAsync(),
+                () =>
+                {
+                    _detachedAiChatWindow = null;
+                    ViewModel.IsAiChatDetached = false;
+                });
+            ViewModel.IsAiChatDetached = true;
+        }
+        _detachedAiChatWindow.Activate();
+    }
+
+    private void AiChatPanel_SettingsRequested(object? sender, EventArgs e)
+    {
+        AiChatFlyout.Hide();
+        _ = OpenSettingsAsync();
+    }
+
     // ==================== SETTINGS & ABOUT ====================
 
-    private async void SettingsButton_Click(object sender, RoutedEventArgs e)
+    private void SettingsButton_Click(object sender, RoutedEventArgs e) => _ = OpenSettingsAsync();
+
+    private async Task OpenSettingsAsync()
     {
+        if (IsContentDialogOpen())
+            return;
         try
         {
+            Activate();
             var dialog = new Views.SettingsDialog(_configService, _themeService, (FrameworkElement)Content, this)
             {
                 XamlRoot = ((FrameworkElement)Content).XamlRoot
@@ -704,6 +752,8 @@ public sealed partial class MainWindow : Window
             {
                 tab.Refresh();
             }
+            ViewModel.AiChat.RefreshSettings();
+            _detachedAiChatWindow?.ApplyTheme(_themeService.CurrentTheme);
         }
         catch (Exception ex)
         {

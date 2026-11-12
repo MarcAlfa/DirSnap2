@@ -15,6 +15,11 @@
   ],
   "editor_wrap": true,
   "editor_font_size": 13,
+  "ai_provider": "gemini",
+  "ai_models": {},
+  "ai_base_url": "http://localhost:11434/v1",
+  "ai_api_keys_encrypted": {},
+  "ai_max_context_chars": 120000,
   "splitter_distance": 450,
   "window": {
     "x": 100,

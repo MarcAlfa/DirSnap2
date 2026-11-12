@@ -14,6 +14,9 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly IThemeService _themeService;
 
     public ISnapListService SnapList { get; }
+
+    /// <summary>AI Assistant (shared by the toolbar flyout and the detached window).</summary>
+    public AiChatViewModel AiChat { get; }
     public IThemeService ThemeService => _themeService;
 
     public ObservableCollection<WorkspaceTabViewModel> Tabs { get; } = new();
@@ -32,6 +35,9 @@ public sealed partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _isSnapListDetached;
+
+    [ObservableProperty]
+    private bool _isAiChatDetached;
 
     public bool IsCurrentPathFavorite
     {
@@ -126,6 +132,8 @@ public sealed partial class MainViewModel : ObservableObject
         ReloadDrives();
         ReloadFavoritesAndRecents();
         RestoreWorkspaceTabs();
+
+        AiChat = new AiChatViewModel(this, configService, textFileService, new AiService());
     }
 
     public void ReloadDrives()

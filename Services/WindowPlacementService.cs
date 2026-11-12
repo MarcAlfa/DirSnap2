@@ -6,11 +6,16 @@ using DirSnap2.Models;
 
 namespace DirSnap2.Services;
 
+/// <summary>
+/// Saves and restores position, size, maximized state and monitor of a window.
+/// Works for any number of windows (main window, detached AI Assistant...).
+/// </summary>
 public static class WindowPlacementService
 {
-    private static RectInt32 _lastNormalBounds;
+    // Last "restored" (not maximized) bounds of each window, used when it is saved while maximized
+    private static readonly Dictionary<ulong, RectInt32> LastNormalBounds = new();
 
-    public static void RestoreWindow(AppWindow appWindow, WindowPlacement placement)
+    public static void RestoreWindow(AppWindow appWindow, WindowPlacement placement, int minWidth = 800, int minHeight = 500)
     {
         try
         {
@@ -29,49 +34,31 @@ public static class WindowPlacementService
                 }
             }
 
-            var targetRect = new RectInt32(placement.X, placement.Y, placement.Width, placement.Height);
+            int width = Math.Max(placement.Width, minWidth);
+            int height = Math.Max(placement.Height, minHeight);
+            var targetRect = new RectInt32(placement.X, placement.Y, width, height);
             var displayAtRect = DisplayArea.GetFromRect(targetRect, DisplayAreaFallback.None);
 
             if (displayAtRect != null)
             {
                 appWindow.MoveAndResize(targetRect);
             }
-            else if (targetDisplay != null)
+            else
             {
-                var work = targetDisplay.WorkArea;
-                int w = Math.Min(placement.Width, work.Width - 40);
-                int h = Math.Min(placement.Height, work.Height - 40);
+                // Saved monitor gone or position off-screen: center on the saved (or primary) monitor
+                var work = (targetDisplay ?? DisplayArea.Primary).WorkArea;
+                int w = Math.Min(width, work.Width - 40);
+                int h = Math.Min(height, work.Height - 40);
                 int x = work.X + Math.Max(0, (work.Width - w) / 2);
                 int y = work.Y + Math.Max(0, (work.Height - h) / 2);
                 appWindow.MoveAndResize(new RectInt32(x, y, w, h));
             }
-            else
-            {
-                var primary = DisplayArea.Primary;
-                int w = Math.Min(placement.Width, primary.WorkArea.Width - 40);
-                int h = Math.Min(placement.Height, primary.WorkArea.Height - 40);
-                int x = primary.WorkArea.X + (primary.WorkArea.Width - w) / 2;
-                int y = primary.WorkArea.Y + (primary.WorkArea.Height - h) / 2;
-                appWindow.MoveAndResize(new RectInt32(x, y, w, h));
-            }
 
-            _lastNormalBounds = new RectInt32(appWindow.Position.X, appWindow.Position.Y, appWindow.Size.Width, appWindow.Size.Height);
+            TrackNormalBounds(appWindow);
 
-            appWindow.Changed += (sender, args) =>
+            if (placement.Maximized && appWindow.Presenter is OverlappedPresenter presenter)
             {
-                if (!(args.DidPositionChange || args.DidSizeChange)) return;
-                if (sender.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Restored })
-                {
-                    _lastNormalBounds = new RectInt32(sender.Position.X, sender.Position.Y, sender.Size.Width, sender.Size.Height);
-                }
-            };
-
-            if (placement.Maximized)
-            {
-                if (appWindow.Presenter is OverlappedPresenter presenter)
-                {
-                    presenter.Maximize();
-                }
+                presenter.Maximize();
             }
         }
         catch (Exception ex)
@@ -80,7 +67,26 @@ public static class WindowPlacementService
         }
     }
 
-    public static void SaveWindow(AppWindow appWindow, WindowPlacement placement)
+    /// <summary>Remembers the restored bounds while the window moves, so a maximized window saves its normal size.</summary>
+    public static void TrackNormalBounds(AppWindow appWindow)
+    {
+        ulong id = appWindow.Id.Value;
+        bool firstTime = !LastNormalBounds.ContainsKey(id);
+        LastNormalBounds[id] = new RectInt32(appWindow.Position.X, appWindow.Position.Y, appWindow.Size.Width, appWindow.Size.Height);
+        if (!firstTime)
+            return;
+
+        appWindow.Changed += (sender, args) =>
+        {
+            if (!(args.DidPositionChange || args.DidSizeChange)) return;
+            if (sender.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Restored })
+            {
+                LastNormalBounds[sender.Id.Value] = new RectInt32(sender.Position.X, sender.Position.Y, sender.Size.Width, sender.Size.Height);
+            }
+        };
+    }
+
+    public static void SaveWindow(AppWindow appWindow, WindowPlacement placement, int minWidth = 800, int minHeight = 500)
     {
         try
         {
@@ -92,9 +98,12 @@ public static class WindowPlacementService
 
             placement.Maximized = presenter.State == OverlappedPresenterState.Maximized;
 
-            var bounds = placement.Maximized ? _lastNormalBounds : new RectInt32(appWindow.Position.X, appWindow.Position.Y, appWindow.Size.Width, appWindow.Size.Height);
+            var current = new RectInt32(appWindow.Position.X, appWindow.Position.Y, appWindow.Size.Width, appWindow.Size.Height);
+            var bounds = placement.Maximized && LastNormalBounds.TryGetValue(appWindow.Id.Value, out var normal)
+                ? normal
+                : current;
 
-            if (bounds.Width >= 800 && bounds.Height >= 500)
+            if (bounds.Width >= minWidth && bounds.Height >= minHeight)
             {
                 placement.X = bounds.X;
                 placement.Y = bounds.Y;
