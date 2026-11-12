@@ -5,6 +5,19 @@
 - **Current version**: `0.1.4` (single source: `AppConstants.AppVersion` in `AppConstants.cs`)
 - **History**: [CHANGELOG.md](CHANGELOG.md) · **Next ideas**: [TODO.md](TODO.md)
 - **UI language**: English
+- **License**: [MIT](LICENSE)
+
+---
+
+## Download & install
+
+1. Download `DirSnap2_vX.Y.Z_win-x64.zip` from the [Releases](https://github.com/MarcAlfa/DirSnap2/releases) page.
+2. Extract it to a folder **you can write to** (e.g. `Documents\DirSnap2` or `C:\Tools\DirSnap2`, not `C:\Program Files`): settings and logs are saved next to the exe.
+3. Start `DirSnap2.exe`.
+
+Requirements: Windows 10 version 2004 or later, or Windows 11 (x64). Nothing else to install: .NET 8 and the Windows App SDK are included. The exe is not signed, so Windows SmartScreen may ask for confirmation the first time (*More info* → *Run anyway*).
+
+To update, replace the folder content with the new version: your `config.json` (tabs, favorites, Snap List, settings) is not in the zip, so it is kept.
 
 ---
 
@@ -96,7 +109,11 @@ dotnet build -c Debug
 Then start `Start_DirSnap2.bat` (it runs `bin\x64\Debug\net8.0-windows10.0.26100.0\win-x64\DirSnap2.exe`). Close the running app before rebuilding: the single-instance app keeps the exe locked.
 
 - `config.json` (settings, tabs, Snap List) is created next to the exe, with an automatic `config.json.bak`; `config.example.json` is the starting template.
-- Logs: `logs\dirsnap2.log` next to the exe.
+- Logs: `logs\dirsnap2.log` next to the exe, with error details; over 2 MB it is moved to `dirsnap2.old.log` at startup. Unexpected errors also go to `crash.log`.
+
+### Release package
+
+`Publish_DirSnap2.bat` builds the self-contained Release into `publish\DirSnap2\` and zips it as `publish\DirSnap2_vX.Y.Z_win-x64.zip` (version read from `DirSnap2.csproj`), ready to attach to a GitHub Release.
 
 ## Project structure
 

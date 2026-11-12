@@ -32,5 +32,7 @@
 
   <ItemGroup>
     <Content Include="assets\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <!-- First-run defaults: used when config.json does not exist yet -->
+    <Content Include="config.example.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

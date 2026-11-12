@@ -25,3 +25,6 @@ crash.log
 # User specific local config (keep template tracked)
 config.json
 !config.example.json
+
+# Release output (Publish_DirSnap2.bat)
+publish/

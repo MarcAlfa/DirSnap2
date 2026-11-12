@@ -30,8 +30,8 @@
         "mode": "flat",
         "filter": "",
         "show_all": false,
-        "sort_col": "name",
-        "sort_desc": false,
+        "sort_col": "mtime",
+        "sort_desc": true,
         "selected_file": null
       }
     ],
