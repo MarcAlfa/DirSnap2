@@ -171,3 +171,7 @@ Development history, from the first setup to the current version. The [README](R
   - [x] `✨ AI` toolbar button: accent-filled while a chat of this session is open (back to normal after *New*), and pulsing (slow fade in/out) while a reply is being thought or written, also when the chat is in the detached window.
   - [x] Editor toolbar order, left to right: *Save* / *Format JSON* (only when useful, so they do not shift the fixed icons), unlock, find, copy, word wrap, outline (rightmost).
   - [x] Word wrap is off by default for new tabs and `config.example.json`; tabs saved before are switched off once (`wrap_off_default_applied`), later choices are kept.
+- [x] **Phase 21: Version 0.2.3 - Folder Tree Single Click & Reliable Expand**
+  - [x] Version bump to `0.2.3` across `AppConstants.cs`, `DirSnap2.csproj`, and `app.manifest`
+  - [x] Folder tree flyout (`Tree`): a single click on a folder goes to it in the list and closes the flyout (it used to need a double click); the chevron only expands. The old double-click handlers are gone.
+  - [x] Expanding a branch works on the first click: the chevron is shown only on folders with visible subfolders (same hidden/system rule as the list), and the expansion is re-asserted after children are loaded during `Expanding` (WinUI could drop it).

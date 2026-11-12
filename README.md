@@ -2,7 +2,7 @@
 
 **DirSnap 2** is a fast Windows 11 file browser with a built-in text preview and editor, made for working with folders full of notes, scripts and code (Markdown, PL/SQL, Python, JavaScript...). It is written in **C# / .NET 8 / WinUI 3** (Windows App SDK, unpackaged) and replaces the Python/Tkinter DirSnap v1.
 
-- **Current version**: `0.2.2` (single source: `AppConstants.AppVersion` in `AppConstants.cs`)
+- **Current version**: `0.2.3` (single source: `AppConstants.AppVersion` in `AppConstants.cs`)
 - **History**: [CHANGELOG.md](CHANGELOG.md) · **Next ideas**: [TODO.md](TODO.md)
 - **UI language**: English
 - **License**: [MIT](LICENSE)

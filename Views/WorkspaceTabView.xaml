@@ -162,14 +162,12 @@
                                       Expanding="HierarchicalTreeView_Expanding"
                                       ItemInvoked="HierarchicalTreeView_ItemInvoked"
                                       SelectionChanged="HierarchicalTreeView_SelectionChanged"
-                                      DoubleTapped="HierarchicalTreeView_DoubleTapped"
                                       KeyDown="HierarchicalTreeView_KeyDown"
                                       Margin="0,6,0,0">
                                 <TreeView.ItemTemplate>
                                     <DataTemplate>
                                         <Grid ColumnSpacing="8" Height="28"
                                               Background="{Binding Content.TreeItemRowBackgroundBrush}"
-                                              DoubleTapped="TreeItem_DoubleTapped"
                                               CornerRadius="4" Padding="6,0">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />

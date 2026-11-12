@@ -631,12 +631,9 @@ public sealed partial class WorkspaceTabView : UserControl
                     bool isFinalTarget = string.Equals(d.Path.TrimEnd('\\', '/'), targetPath.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase);
                     d.IsCurrentFolder = isFinalTarget;
 
-                    var dNode = new TreeViewNode
-                    {
-                        Content = d,
-                        HasUnrealizedChildren = !isTargetSubPath,
-                        IsExpanded = false
-                    };
+                    var dNode = isTargetSubPath
+                        ? new TreeViewNode { Content = d, HasUnrealizedChildren = false, IsExpanded = false }
+                        : CreateFolderNode(d, ViewModel.ShowAll);
                     currentNode.Children.Add(dNode);
 
                     if (isTargetSubPath)
@@ -664,11 +661,7 @@ public sealed partial class WorkspaceTabView : UserControl
                 currentNode.Children.Clear();
                 foreach (var d in targetDirs)
                 {
-                    currentNode.Children.Add(new TreeViewNode
-                    {
-                        Content = d,
-                        HasUnrealizedChildren = true
-                    });
+                    currentNode.Children.Add(CreateFolderNode(d, ViewModel.ShowAll));
                 }
                 currentNode.HasUnrealizedChildren = false;
             }
@@ -723,6 +716,37 @@ public sealed partial class WorkspaceTabView : UserControl
         return result;
     }
 
+    /// <summary>
+    /// True when the folder contains at least one subfolder that the tree would show
+    /// (same hidden/system rule as ScanDirectory). Used so the expand chevron appears
+    /// only on folders that really expand.
+    /// </summary>
+    private static bool HasVisibleSubfolders(string path, bool showAll)
+    {
+        try
+        {
+            foreach (var di in new DirectoryInfo(path).EnumerateDirectories())
+            {
+                try
+                {
+                    var attr = di.Attributes;
+                    if (showAll || (attr & (FileAttributes.Hidden | FileAttributes.System)) == 0)
+                        return true;
+                }
+                catch { }
+            }
+        }
+        catch { }
+        return false;
+    }
+
+    private TreeViewNode CreateFolderNode(FSItem dir, bool showAll) => new()
+    {
+        Content = dir,
+        HasUnrealizedChildren = HasVisibleSubfolders(dir.Path, showAll),
+        IsExpanded = false
+    };
+
     private void HierarchicalTreeView_Expanding(TreeView sender, TreeViewExpandingEventArgs args)
     {
         var node = args.Node;
@@ -733,12 +757,23 @@ public sealed partial class WorkspaceTabView : UserControl
                 AppLogger.Info($"[HierarchicalTreeView_Expanding] Expanding node: {item.Path}");
                 var allowedExt = ViewModel.ConfigService.Current.EditorExtensions;
                 var (dirs, _, _) = ViewModel.FileSystemService.ScanDirectory(item.Path, ViewModel.ShowAll, allowedExt);
-                node.Children.Clear();
+                if (node.Children.Count > 0)
+                    node.Children.Clear();
                 foreach (var d in dirs)
                 {
-                    node.Children.Add(new TreeViewNode { Content = d, HasUnrealizedChildren = true });
+                    node.Children.Add(CreateFolderNode(d, ViewModel.ShowAll));
                 }
                 node.HasUnrealizedChildren = false;
+
+                // WinUI TreeView can drop the expansion when children are added during
+                // Expanding, so the first click looked like it did nothing: re-assert it.
+                if (node.Children.Count > 0)
+                {
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        if (!node.IsExpanded) node.IsExpanded = true;
+                    });
+                }
             }
             catch (Exception ex)
             {
@@ -762,73 +797,18 @@ public sealed partial class WorkspaceTabView : UserControl
             }
 
             AppLogger.Info($"[HierarchicalTreeView_ItemInvoked] Invoked: {item.Path} (IsDir={item.IsDirectory})");
+            // Single click: go to the folder (or open the file) and close the tree.
+            // Expanding a branch is done with its chevron only.
+            args.Handled = true;
             if (item.IsDirectory)
-            {
                 ViewModel.NavigateToInternal(item.Path, recordHistory: true);
-            }
             else
-            {
                 ViewModel.SelectFile(item.Path);
-                FolderTreeFlyout.Hide();
-            }
+            FolderTreeFlyout.Hide();
         }
         catch (Exception ex)
         {
             AppLogger.Error("[HierarchicalTreeView_ItemInvoked] Error", ex);
-        }
-    }
-
-    private void HierarchicalTreeView_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-    {
-        try
-        {
-            var item = (HierarchicalTreeView.SelectedItem as TreeViewNode)?.Content as FSItem ?? HierarchicalTreeView.SelectedItem as FSItem;
-            if (item is { IsDirectory: true } && ViewModel != null)
-            {
-                AppLogger.Info($"[HierarchicalTreeView_DoubleTapped] DoubleTapped: {item.Path}");
-                ViewModel.NavigateToInternal(item.Path, recordHistory: true);
-                FolderTreeFlyout.Hide();
-                e.Handled = true;
-                return;
-            }
-
-            if (e.OriginalSource is FrameworkElement fe)
-            {
-                var targetItem = (fe.DataContext as TreeViewNode)?.Content as FSItem ?? fe.DataContext as FSItem;
-                if (targetItem is { IsDirectory: true } && ViewModel != null)
-                {
-                    AppLogger.Info($"[HierarchicalTreeView_DoubleTapped] OriginalSource DoubleTapped: {targetItem.Path}");
-                    ViewModel.NavigateToInternal(targetItem.Path, recordHistory: true);
-                    FolderTreeFlyout.Hide();
-                    e.Handled = true;
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            AppLogger.Error("[HierarchicalTreeView_DoubleTapped] Error", ex);
-        }
-    }
-
-    private void TreeItem_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-    {
-        try
-        {
-            if (sender is FrameworkElement fe)
-            {
-                var item = (fe.DataContext as TreeViewNode)?.Content as FSItem ?? fe.DataContext as FSItem;
-                if (item is { IsDirectory: true } && ViewModel != null)
-                {
-                    AppLogger.Info($"[TreeItem_DoubleTapped] DoubleTapped: {item.Path}");
-                    ViewModel.NavigateToInternal(item.Path, recordHistory: true);
-                    FolderTreeFlyout.Hide();
-                    e.Handled = true;
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            AppLogger.Error("[TreeItem_DoubleTapped] Error", ex);
         }
     }
 
