@@ -570,6 +570,7 @@ public sealed partial class WorkspaceTabView
         OutlineCountText.Text = items.Count > 0 ? $"({items.Count})" : string.Empty;
         OutlineEmptyText.Text = CodeOutlineService.IsMarkdown(path) ? "No headings found" : "No functions found";
         OutlineEmptyText.Visibility = items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        ScheduleOutlineFollow();
     }
 
     private void SetOutlineOpen(bool open)
@@ -590,7 +591,7 @@ public sealed partial class WorkspaceTabView
     }
 
     /// <summary>Scrolls the preview/editor to a 0-based line and highlights the name on it.</summary>
-    private void GoToLine(int line, string name)
+    private void GoToLine(int line, string name, double topRatio = 0.08)
     {
         if (MarkdownScrollViewer.Visibility == Visibility.Visible)
         {
@@ -647,6 +648,6 @@ public sealed partial class WorkspaceTabView
         // Put the definition near the top of the view
         HookEditorScrollViewer();
         _editorScrollViewer?.ChangeView(0, null, null, true);
-        ScrollEditorToIndex(index, topRatio: 0.08);
+        ScrollEditorToIndex(index, topRatio);
     }
 }

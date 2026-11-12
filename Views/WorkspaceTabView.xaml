@@ -305,7 +305,7 @@
                           x:Name="FlatListView"
                           ItemsSource="{Binding FlatItems}"
                           SelectedItem="{Binding SelectedItem, Mode=TwoWay}"
-                          SelectionMode="Single"
+                          SelectionMode="Extended"
                           SelectionChanged="FlatListView_SelectionChanged"
                           DoubleTapped="FlatListView_DoubleTapped"
                           KeyDown="FlatListView_KeyDown">
@@ -432,6 +432,11 @@
                                             </MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
                                         <MenuFlyoutSeparator />
+                                        <MenuFlyoutItem Text="Folder info (size, files)" Click="Context_FolderInfo_Click" Visibility="{Binding IsDirectory, Converter={StaticResource BoolToVisibilityConverter}}">
+                                            <MenuFlyoutItem.Icon>
+                                                <FontIcon Glyph="&#xE946;" />
+                                            </MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
                                         <MenuFlyoutItem Text="Open in New Tab" Click="Context_OpenInNewTab_Click" Visibility="{Binding IsDirectory, Converter={StaticResource BoolToVisibilityConverter}}">
                                             <MenuFlyoutItem.Icon>
                                                 <FontIcon Glyph="&#xE8A7;" />
@@ -653,7 +658,16 @@
 
             <!-- Bottom Left Info Bar: Always shows folder totals -->
             <Border Grid.Row="5" Background="{ThemeResource AppBackgroundBrush}" BorderBrush="{ThemeResource AppBorderBrush}" BorderThickness="0,1,0,0" Padding="8,4">
-                <TextBlock Text="{Binding FolderSummaryText}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{Binding FolderSummaryText}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                    <!-- Multiple selection (Ctrl/Shift + click): how many items the actions apply to -->
+                    <TextBlock Grid.Column="1" x:Name="SelectionCountText" FontSize="11" FontWeight="SemiBold"
+                               Foreground="{ThemeResource AppAccentBrush}" Visibility="Collapsed" />
+                </Grid>
             </Border>
         </Grid>
 
@@ -985,10 +999,18 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <TextBlock Grid.Column="0" Text="{Binding CurrentEditingFilePath}" 
-                               FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                    <!-- Path, then the line counter right after it (the path gets trimmed when space is short: see UpdateFooterPathWidth) -->
+                    <StackPanel Grid.Column="0" x:Name="FooterLeftPanel" Orientation="Horizontal" Spacing="16" SizeChanged="Footer_SizeChanged">
+                        <TextBlock x:Name="FooterPathText" Text="{Binding CurrentEditingFilePath}"
+                                   FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                        <!-- Caret line / total lines; click (or Ctrl+G) to go to a line -->
+                        <TextBlock x:Name="FooterLineText" FontSize="11" Visibility="Collapsed"
+                                   Foreground="{ThemeResource AppAccentBrush}" FontWeight="SemiBold"
+                                   Tapped="FooterLineText_Tapped" SizeChanged="Footer_SizeChanged"
+                                   ToolTipService.ToolTip="Go to line (Ctrl+G)" />
+                    </StackPanel>
 
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16">
+                    <StackPanel Grid.Column="1" x:Name="FooterRightPanel" Orientation="Horizontal" Spacing="16" SizeChanged="Footer_SizeChanged">
                         <TextBlock Text="{Binding EditorEncodingName}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                         <TextBlock Text="{Binding EditorNewlineName}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     </StackPanel>

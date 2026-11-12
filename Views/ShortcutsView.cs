@@ -38,6 +38,7 @@ public static class ShortcutsView
         ("File list", new[]
         {
             new Shortcut("Enter", "Open the selected folder or file"),
+            new Shortcut("Ctrl / Shift + click", "Select several items (copy, cut, duplicate, delete, Snap List)"),
             new Shortcut("Double-click", "Open folder / open file in edit mode"),
             new Shortcut("Ins", "Add the selected item to the Snap List"),
             new Shortcut("Ctrl + C", "Copy the selected file/folder (paste it in Explorer)"),
@@ -52,6 +53,7 @@ public static class ShortcutsView
             new Shortcut("Ctrl + S", "Save the file"),
             new Shortcut("Ctrl + F", "Find in the file (when the preview has focus)"),
             new Shortcut("F3 / Shift + F3", "Next / previous match"),
+            new Shortcut("Ctrl + G", "Go to line (also: click the line counter in the footer)"),
             new Shortcut("Enter / Shift + Enter", "Next / previous match (find box)"),
             new Shortcut("Esc", "Close the find bar"),
         }),

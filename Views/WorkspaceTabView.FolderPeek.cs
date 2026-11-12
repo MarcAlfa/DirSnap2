@@ -18,8 +18,11 @@ public sealed partial class WorkspaceTabView
     private const double MinListHeight = 120;
 
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? _peekTimer;
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _peekPollTimer;
     private int _peekVersion;
     private string? _peekPath;
+    private int _peekSignature;
+    private bool _peekPolling;
 
     private bool _isDraggingPeekSplitter;
     private double _peekSplitterStartY;
@@ -31,6 +34,38 @@ public sealed partial class WorkspaceTabView
         _peekTimer.Interval = TimeSpan.FromMilliseconds(120); // arrow keys through the list stay smooth
         _peekTimer.IsRepeating = false;
         _peekTimer.Tick += (_, _) => UpdateFolderPeek();
+
+        // Live update, like the main list: the shown folder is re-scanned every 2 seconds and the
+        // panel is rebuilt only when something changed. Polling keeps no handle open on the folder.
+        _peekPollTimer = DispatcherQueue.CreateTimer();
+        _peekPollTimer.Interval = TimeSpan.FromSeconds(2);
+        _peekPollTimer.IsRepeating = true;
+        _peekPollTimer.Tick += (_, _) => PollFolderPeek();
+        _peekPollTimer.Start();
+        Unloaded += (_, _) => _peekPollTimer?.Stop();
+        Loaded += (_, _) => _peekPollTimer?.Start();
+    }
+
+    private void PollFolderPeek()
+    {
+        if (_peekPolling || _peekPath == null || ViewModel is not { IsActiveTab: true }) return;
+        if (FolderPeekBody.Visibility != Visibility.Visible) return; // collapsed: nothing to keep fresh
+        UpdateFolderPeek(auto: true);
+    }
+
+    /// <summary>Changes when a name, date or size of the listed items changes.</summary>
+    private static int GetPeekSignature(List<FSItem> items, string? error)
+    {
+        var hash = new HashCode();
+        hash.Add(error);
+        foreach (var i in items)
+        {
+            hash.Add(i.Name, StringComparer.OrdinalIgnoreCase);
+            hash.Add(i.IsDirectory);
+            hash.Add(i.ModifiedTime);
+            hash.Add(i.Size);
+        }
+        return hash.ToHashCode();
     }
 
     private void ApplySavedFolderPeekLayout()
@@ -55,14 +90,16 @@ public sealed partial class WorkspaceTabView
         _peekTimer.Start();
     }
 
-    private async void UpdateFolderPeek()
+    /// <param name="auto">Background poll: rebuilds the panel only when the folder changed, keeping selection and scroll.</param>
+    private async void UpdateFolderPeek(bool auto = false)
     {
-        _peekTimer?.Stop();
+        if (!auto) _peekTimer?.Stop();
         var vm = ViewModel;
-        int version = ++_peekVersion;
+        int version = auto ? _peekVersion : ++_peekVersion;
 
         if (vm?.SelectedItem is not { IsDirectory: true } folder || folder.Name == "..")
         {
+            if (auto) return;
             _peekPath = null;
             FolderPeekTitle.Text = "Folder contents";
             FolderPeekListView.ItemsSource = null;
@@ -73,11 +110,13 @@ public sealed partial class WorkspaceTabView
         }
 
         var path = folder.Path;
+        if (auto && !string.Equals(path, _peekPath, StringComparison.OrdinalIgnoreCase)) return;
         bool showAll = vm.ShowAll;
         var allowedExt = vm.ConfigService.Current.EditorExtensions.ToList();
 
         List<FSItem> items;
         string? error;
+        if (auto) _peekPolling = true;
         try
         {
             // Same rules as the main list (Show all / allowed extensions), off the UI thread
@@ -92,8 +131,21 @@ public sealed partial class WorkspaceTabView
             items = new List<FSItem>();
             error = ex.Message;
         }
+        finally
+        {
+            if (auto) _peekPolling = false;
+        }
 
         if (version != _peekVersion) return; // selection changed meanwhile
+
+        int signature = GetPeekSignature(items, error);
+        if (auto && signature == _peekSignature) return; // nothing changed on disk
+        _peekSignature = signature;
+
+        // A background refresh keeps the selected row and the scroll position
+        string? keepSelected = auto ? (FolderPeekListView.SelectedItem as FSItem)?.Path : null;
+        var peekScroll = auto ? FindVisualChild<ScrollViewer>(FolderPeekListView) : null;
+        double keepOffset = peekScroll?.VerticalOffset ?? 0;
 
         _peekPath = path;
         int dirs = items.Count(i => i.IsDirectory);
@@ -102,6 +154,13 @@ public sealed partial class WorkspaceTabView
         ToolTipService.SetToolTip(FolderPeekTitle, path);
 
         FolderPeekListView.ItemsSource = items;
+        if (keepSelected != null)
+            FolderPeekListView.SelectedItem = items.FirstOrDefault(i => string.Equals(i.Path, keepSelected, StringComparison.OrdinalIgnoreCase));
+        if (peekScroll != null && keepOffset > 0)
+        {
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
+                () => peekScroll.ChangeView(null, keepOffset, null, true));
+        }
         bool empty = items.Count == 0;
         FolderPeekListView.Visibility = empty ? Visibility.Collapsed : Visibility.Visible;
         FolderPeekHint.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;

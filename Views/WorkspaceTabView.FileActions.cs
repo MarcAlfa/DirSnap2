@@ -19,48 +19,63 @@ public sealed partial class WorkspaceTabView
     private FSItem? GetContextItem(object sender) =>
         (sender as FrameworkElement)?.DataContext as FSItem ?? ViewModel?.SelectedItem;
 
+    /// <summary>
+    /// Items an action applies to (multiple selection): the selected ones, or only the right-clicked
+    /// row when it is not part of the selection (like Explorer). ".." is never included.
+    /// </summary>
+    private List<FSItem> GetActionItems(FSItem? clicked = null)
+    {
+        var selected = FlatListView.SelectedItems.OfType<FSItem>().Where(i => i.Name != "..").ToList();
+        if (clicked != null && clicked.Name != ".." && !selected.Contains(clicked))
+            return new List<FSItem> { clicked };
+        if (selected.Count == 0 && clicked != null && clicked.Name != "..")
+            return new List<FSItem> { clicked };
+        return selected;
+    }
+
+    private static string DescribeItems(IReadOnlyList<FSItem> items) =>
+        items.Count == 1 ? $"'{items[0].Name}'" : $"{items.Count} items";
+
     // ==================== COPY ====================
 
-    private void Context_Copy_Click(object sender, RoutedEventArgs e)
-    {
-        if (GetContextItem(sender) is { } item)
-            _ = CopyItemToClipboardAsync(item);
-    }
+    private void Context_Copy_Click(object sender, RoutedEventArgs e) =>
+        _ = CopyItemsToClipboardAsync(GetActionItems(GetContextItem(sender)));
 
-    private void Context_Cut_Click(object sender, RoutedEventArgs e)
-    {
-        if (GetContextItem(sender) is { } item)
-            _ = CopyItemToClipboardAsync(item, cut: true);
-    }
+    private void Context_Cut_Click(object sender, RoutedEventArgs e) =>
+        _ = CopyItemsToClipboardAsync(GetActionItems(GetContextItem(sender)), cut: true);
 
     /// <summary>
-    /// Puts the file/folder on the clipboard as a real item: Ctrl+V in Explorer pastes a copy
-    /// (or moves it, after Cut).
+    /// Puts the files/folders on the clipboard as real items: Ctrl+V in Explorer pastes a copy
+    /// (or moves them, after Cut).
     /// </summary>
-    private async Task CopyItemToClipboardAsync(FSItem item, bool cut = false)
+    private async Task CopyItemsToClipboardAsync(IReadOnlyList<FSItem> items, bool cut = false)
     {
         var vm = ViewModel;
-        if (vm == null || item.Name == "..") return;
+        if (vm == null || items.Count == 0) return;
 
         try
         {
-            IStorageItem storageItem = item.IsDirectory
-                ? await StorageFolder.GetFolderFromPathAsync(item.Path)
-                : await StorageFile.GetFileFromPathAsync(item.Path);
+            var storageItems = new List<IStorageItem>(items.Count);
+            foreach (var item in items)
+            {
+                storageItems.Add(item.IsDirectory
+                    ? await StorageFolder.GetFolderFromPathAsync(item.Path)
+                    : await StorageFile.GetFileFromPathAsync(item.Path));
+            }
 
             var dp = new DataPackage { RequestedOperation = cut ? DataPackageOperation.Move : DataPackageOperation.Copy };
-            dp.SetStorageItems(new[] { storageItem });
+            dp.SetStorageItems(storageItems);
             Clipboard.SetContent(dp);
             Clipboard.Flush(); // stays on the clipboard after DirSnap 2 is closed
 
             vm.StatusMessage = cut
-                ? $"Cut '{item.Name}': paste it in another folder to move it"
-                : $"Copied '{item.Name}' to the clipboard";
+                ? $"Cut {DescribeItems(items)}: paste in another folder to move"
+                : $"Copied {DescribeItems(items)} to the clipboard";
         }
         catch (Exception ex)
         {
-            AppLogger.Error($"[Copy] Error copying {item.Path} to clipboard", ex);
-            vm.StatusMessage = $"Cannot copy '{item.Name}': {ex.Message}";
+            AppLogger.Error($"[Copy] Error copying {items.Count} item(s) to clipboard", ex);
+            vm.StatusMessage = $"Cannot copy {DescribeItems(items)}: {ex.Message}";
         }
     }
 
@@ -68,11 +83,8 @@ public sealed partial class WorkspaceTabView
 
     private void Context_Paste_Click(object sender, RoutedEventArgs e) => _ = PasteFromClipboardAsync();
 
-    private void Context_Duplicate_Click(object sender, RoutedEventArgs e)
-    {
-        if (GetContextItem(sender) is { } item)
-            _ = DuplicateItemAsync(item);
-    }
+    private void Context_Duplicate_Click(object sender, RoutedEventArgs e) =>
+        _ = DuplicateItemsAsync(GetActionItems(GetContextItem(sender)));
 
     /// <summary>Owner window of the Windows copy/move dialogs.</summary>
     private IntPtr GetOwnerWindowHandle()
@@ -192,25 +204,34 @@ public sealed partial class WorkspaceTabView
         vm.RefreshCommand.Execute(null);
     }
 
-    /// <summary>Copy of the file/folder next to it ("name - Copy.ext").</summary>
-    private async Task DuplicateItemAsync(FSItem item)
+    /// <summary>Copy of each file/folder next to it ("name - Copy.ext").</summary>
+    private async Task DuplicateItemsAsync(IReadOnlyList<FSItem> items)
     {
         var vm = ViewModel;
-        var parent = Path.GetDirectoryName(item.Path);
-        if (vm == null || item.Name == ".." || string.IsNullOrEmpty(parent)) return;
+        if (vm == null || items.Count == 0) return;
 
         var owner = GetOwnerWindowHandle();
         try
         {
-            bool done = await Task.Run(() => ShellFileOperations.Copy(new[] { item.Path }, parent, renameOnCollision: true, owner));
+            bool done = await Task.Run(() =>
+            {
+                // The list shows one folder, but group by parent to be safe
+                foreach (var group in items.GroupBy(i => Path.GetDirectoryName(i.Path) ?? string.Empty, StringComparer.OrdinalIgnoreCase))
+                {
+                    if (group.Key.Length == 0) continue;
+                    if (!ShellFileOperations.Copy(group.Select(i => i.Path).ToList(), group.Key, renameOnCollision: true, owner))
+                        return false;
+                }
+                return true;
+            });
             if (!ReferenceEquals(vm, ViewModel)) return;
-            vm.StatusMessage = done ? $"Duplicated '{item.Name}'" : "Duplicate cancelled";
-            AppLogger.Info($"[Duplicate] {item.Path} (completed: {done})");
+            vm.StatusMessage = done ? $"Duplicated {DescribeItems(items)}" : "Duplicate cancelled";
+            AppLogger.Info($"[Duplicate] {items.Count} item(s) (completed: {done})");
         }
         catch (Exception ex)
         {
-            AppLogger.Error($"[Duplicate] {item.Path}", ex);
-            vm.StatusMessage = $"Cannot duplicate '{item.Name}': {ex.Message}";
+            AppLogger.Error($"[Duplicate] {items.Count} item(s)", ex);
+            vm.StatusMessage = $"Cannot duplicate {DescribeItems(items)}: {ex.Message}";
         }
         vm.RefreshCommand.Execute(null);
     }
@@ -466,11 +487,8 @@ public sealed partial class WorkspaceTabView
 
     // ==================== DELETE (RECYCLE BIN) ====================
 
-    private void Context_Delete_Click(object sender, RoutedEventArgs e)
-    {
-        if (GetContextItem(sender) is { } item)
-            _ = DeleteItemAsync(item);
-    }
+    private void Context_Delete_Click(object sender, RoutedEventArgs e) =>
+        _ = DeleteItemsAsync(GetActionItems(GetContextItem(sender)));
 
     private async Task<bool> ShowConfirmAsync(string title, string message, string primary)
     {
@@ -499,16 +517,16 @@ public sealed partial class WorkspaceTabView
         }.ShowAsync();
     }
 
-    /// <summary>Moves a file/folder to the Recycle Bin after two confirmations.</summary>
-    private async Task DeleteItemAsync(FSItem item)
+    /// <summary>Moves the files/folders to the Recycle Bin after two confirmations.</summary>
+    private async Task DeleteItemsAsync(IReadOnlyList<FSItem> items)
     {
         var vm = ViewModel;
-        if (vm == null || item.Name == ".." || XamlRoot == null) return;
+        if (vm == null || items.Count == 0 || XamlRoot == null) return;
 
-        string path = item.Path;
-        bool isDir = item.IsDirectory;
         string? openFile = vm.HasActiveFile ? vm.CurrentEditingFilePath : null;
-        bool affectsOpenFile = isDir ? IsSameOrInside(openFile, path) : vm.IsCurrentFile(path);
+        bool Affects(FSItem i) => i.IsDirectory ? IsSameOrInside(openFile, i.Path) : vm.IsCurrentFile(i.Path);
+        bool affectsOpenFile = items.Any(Affects);
+        string names = DescribeItems(items);
 
         try
         {
@@ -518,33 +536,58 @@ public sealed partial class WorkspaceTabView
                 return;
             }
 
-            if (RecycleBinService.GetUnsupportedReason(path) is { } reason)
+            foreach (var item in items)
             {
-                await ShowMessageAsync("Delete", $"'{item.Name}' was not deleted.\n\n{reason}\n\nDelete it from Explorer if you really want to.");
-                return;
+                if (RecycleBinService.GetUnsupportedReason(item.Path) is { } reason)
+                {
+                    await ShowMessageAsync("Delete", $"{names} not deleted.\n\n{reason}\n\nDelete from Explorer if you really want to.");
+                    return;
+                }
             }
 
             // Confirmation 1: what is going to the Recycle Bin
-            string what = isDir ? "folder" : "file";
-            string details = string.Empty;
-            if (isDir)
+            string title, message;
+            if (items.Count == 1)
             {
-                try
+                var item = items[0];
+                string what = item.IsDirectory ? "folder" : "file";
+                string details = string.Empty;
+                if (item.IsDirectory)
                 {
-                    int dirs = Directory.EnumerateDirectories(path).Count();
-                    int files = Directory.EnumerateFiles(path).Count();
-                    details = dirs + files == 0
-                        ? "\n\nThe folder is empty."
-                        : $"\n\nIt contains {dirs} folders and {files} files (plus everything inside the subfolders).";
+                    try
+                    {
+                        int dirs = Directory.EnumerateDirectories(item.Path).Count();
+                        int files = Directory.EnumerateFiles(item.Path).Count();
+                        details = dirs + files == 0
+                            ? "\n\nThe folder is empty."
+                            : $"\n\nIt contains {dirs} folders and {files} files (plus everything inside the subfolders).";
+                    }
+                    catch { }
                 }
-                catch { }
+                title = $"Delete {what}";
+                message = $"Move the {what} '{item.Name}' to the Recycle Bin?{details}";
             }
-            if (!await ShowConfirmAsync($"Delete {what}", $"Move the {what} '{item.Name}' to the Recycle Bin?{details}", "Delete"))
+            else
+            {
+                int folders = items.Count(i => i.IsDirectory);
+                int files = items.Count - folders;
+                const int shown = 10;
+                var list = string.Join("\n", items.Take(shown).Select(i => (i.IsDirectory ? "[folder]  " : "") + i.Name));
+                if (items.Count > shown) list += $"\n... and {items.Count - shown} more";
+                title = $"Delete {items.Count} items";
+                message = $"Move these {items.Count} items ({folders} folders, {files} files) to the Recycle Bin?" +
+                          (folders > 0 ? " Folders go with everything inside them." : string.Empty) +
+                          $"\n\n{list}";
+            }
+            if (!await ShowConfirmAsync(title, message, "Delete"))
                 return;
 
             // Confirmation 2
+            string subject = items.Count == 1 ? names : $"All {items.Count} items";
+            string pronoun = items.Count == 1 ? "it" : "them";
             if (!await ShowConfirmAsync("Are you sure?",
-                    $"'{item.Name}' will be moved to the Recycle Bin.\nYou can restore it from there.", "Yes, move to Recycle Bin"))
+                    $"{subject} will be moved to the Recycle Bin.\nYou can restore {pronoun} from there.",
+                    "Yes, move to Recycle Bin"))
                 return;
 
             if (!ReferenceEquals(vm, ViewModel)) return;
@@ -553,17 +596,40 @@ public sealed partial class WorkspaceTabView
             if (affectsOpenFile)
                 vm.ClearFileSelection();
 
-            RecycleBinService.MoveToRecycleBin(path);
-            AppLogger.Info($"[Delete] Moved to Recycle Bin: {path}");
-            vm.StatusMessage = $"'{item.Name}' moved to the Recycle Bin";
+            var failed = new List<string>();
+            foreach (var item in items)
+            {
+                try
+                {
+                    RecycleBinService.MoveToRecycleBin(item.Path);
+                    AppLogger.Info($"[Delete] Moved to Recycle Bin: {item.Path}");
+                }
+                catch (Exception ex)
+                {
+                    AppLogger.Error($"[Delete] {item.Path}", ex);
+                    failed.Add($"{item.Name}: {ex.Message}");
+                }
+            }
+
             vm.RefreshCommand.Execute(null);
+            if (failed.Count == 0)
+            {
+                vm.StatusMessage = $"{subject} moved to the Recycle Bin";
+            }
+            else
+            {
+                int moved = items.Count - failed.Count;
+                vm.StatusMessage = $"{moved} of {items.Count} moved to the Recycle Bin, {failed.Count} not deleted";
+                string head = items.Count == 1 ? $"{names} was not deleted." : $"{failed.Count} of {items.Count} items were not deleted:";
+                await ShowMessageAsync("Delete", head + "\n\n" + string.Join("\n", failed.Take(10)));
+            }
         }
         catch (Exception ex)
         {
-            AppLogger.Error($"[Delete] {path}", ex);
-            vm.StatusMessage = $"Cannot delete '{item.Name}': {ex.Message}";
-            vm.RefreshCommand.Execute(null); // a folder may have been emptied only in part
-            await ShowMessageAsync("Delete", $"'{item.Name}' was not deleted.\n\n{ex.Message}");
+            AppLogger.Error($"[Delete] {items.Count} item(s)", ex);
+            vm.StatusMessage = $"Cannot delete {names}: {ex.Message}";
+            vm.RefreshCommand.Execute(null);
+            await ShowMessageAsync("Delete", $"{names} not deleted.\n\n{ex.Message}");
         }
     }
 

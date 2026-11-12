@@ -43,6 +43,7 @@ public sealed partial class WorkspaceTabView : UserControl
         MarkdownScrollViewer.ViewChanged += (_, _) => UpdateScrollToTopButtonVisibility();
         InitFindAndOutline();
         InitFolderPeek();
+        InitLineNav();
         EditorTextBox.Loaded += (_, _) => HookEditorScrollViewer();
 
         DataContextChanged += OnDataContextChanged;
@@ -142,6 +143,7 @@ public sealed partial class WorkspaceTabView : UserControl
             MarkdownRichTextBlock.TextHighlighters.Clear(); // ranges refer to the old content
             InvalidateMarkdownIndex();
             MarkdownHighlighter.Highlight(MarkdownRichTextBlock, ViewModel.EditorText, isDark);
+            InvalidateLineNavMarkdown();
             MarkdownScrollViewer.Visibility = Visibility.Visible;
             EditorTextBox.Visibility = Visibility.Collapsed;
         }
@@ -154,6 +156,8 @@ public sealed partial class WorkspaceTabView : UserControl
 
         UpdateScrollToTopButtonVisibility();
         ScheduleFindRefresh();
+        ScheduleLineInfo();
+        ScheduleOutlineFollow();
     }
 
     // ==================== CURRENT FOLDER TREE FLYOUT ====================
@@ -343,6 +347,10 @@ public sealed partial class WorkspaceTabView : UserControl
 
     private async void FlatListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        int selectedCount = FlatListView.SelectedItems.Count;
+        SelectionCountText.Text = $"{selectedCount} selected";
+        SelectionCountText.Visibility = selectedCount > 1 ? Visibility.Visible : Visibility.Collapsed;
+
         if (_isRevertingSelection || ViewModel == null) return;
 
         // Capture the tab: the user could switch tab while the dialog is awaited
@@ -474,7 +482,7 @@ public sealed partial class WorkspaceTabView : UserControl
 
         if (isCtrl && (e.Key == VirtualKey.C || e.Key == VirtualKey.X))
         {
-            _ = CopyItemToClipboardAsync(item, cut: e.Key == VirtualKey.X);
+            _ = CopyItemsToClipboardAsync(GetActionItems(), cut: e.Key == VirtualKey.X);
             e.Handled = true;
             return;
         }
@@ -486,14 +494,15 @@ public sealed partial class WorkspaceTabView : UserControl
         }
         if (e.Key == VirtualKey.Delete)
         {
-            _ = DeleteItemAsync(item);
+            _ = DeleteItemsAsync(GetActionItems());
             e.Handled = true;
             return;
         }
 
         if (e.Key == VirtualKey.Insert)
         {
-            ViewModel.AddItemToSnapListCommand.Execute(item);
+            foreach (var selected in GetActionItems())
+                ViewModel.AddItemToSnapListCommand.Execute(selected);
             e.Handled = true;
         }
         else if (e.Key == VirtualKey.Enter)
@@ -520,7 +529,8 @@ public sealed partial class WorkspaceTabView : UserControl
     // Context Menu Handlers
     private void Context_AddToSnapList_Click(object sender, RoutedEventArgs e)
     {
-        if (ViewModel?.SelectedItem is { } item)
+        if (ViewModel == null) return;
+        foreach (var item in GetActionItems(GetContextItem(sender)))
             ViewModel.AddItemToSnapListCommand.Execute(item);
     }
 
@@ -964,7 +974,11 @@ public sealed partial class WorkspaceTabView : UserControl
         _editorScrollViewer = FindVisualChild<ScrollViewer>(EditorTextBox);
         if (_editorScrollViewer != null)
         {
-            _editorScrollViewer.ViewChanged += (_, _) => UpdateScrollToTopButtonVisibility();
+            _editorScrollViewer.ViewChanged += (_, _) =>
+            {
+                UpdateScrollToTopButtonVisibility();
+                ScheduleOutlineFollow();
+            };
         }
     }
 

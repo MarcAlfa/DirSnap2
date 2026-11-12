@@ -879,7 +879,8 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
         else
         {
             SortColumn = column;
-            SortDescending = false;
+            // Like Explorer: dates start from the newest, sizes from the largest, names from A
+            SortDescending = column is "mtime" or "size";
         }
 
         // Per-tab sort is persisted with the workspace (MainViewModel.SaveWorkspace)

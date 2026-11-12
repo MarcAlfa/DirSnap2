@@ -149,6 +149,8 @@ public sealed partial class MainWindow : Window
             if (!CurrentWorkspaceView.TryOpenFindFromShortcut())
                 CurrentWorkspaceView.FocusFilter();
         });
+        // Ctrl+G: go to a line of the open file
+        Add(VirtualKey.G, Ctrl, () => CurrentWorkspaceView.GoToLineFromShortcut());
         // Ctrl+Shift+F: search text in the files of the current folder
         Add(VirtualKey.F, Ctrl | VirtualKeyModifiers.Shift, () => CurrentWorkspaceView.OpenFileSearch());
         Add(VirtualKey.F3, None, () => CurrentWorkspaceView.FindNextFromShortcut(backwards: false));

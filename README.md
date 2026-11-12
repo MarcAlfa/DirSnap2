@@ -1,210 +1,108 @@
 # DirSnap 2
 
-**DirSnap 2** is a native, modern Windows 11 directory management and snapshot tool built with **C# / .NET 8 / WinUI 3 (Windows App SDK unpackaged)**. It replaces and modernizes the Python/Tkinter DirSnap v1, adopting Fluent Design, Mica material, dark/light themes, and an overhauled workflow designed for maximum efficiency.
+**DirSnap 2** is a fast Windows 11 file browser with a built-in text preview and editor, made for working with folders full of notes, scripts and code (Markdown, PL/SQL, Python, JavaScript...). It is written in **C# / .NET 8 / WinUI 3** (Windows App SDK, unpackaged) and replaces the Python/Tkinter DirSnap v1.
+
+- **Current version**: `0.1.3` (single source: `AppConstants.AppVersion` in `AppConstants.cs`)
+- **History**: [CHANGELOG.md](CHANGELOG.md) · **Next ideas**: [TODO.md](TODO.md)
+- **UI language**: English
 
 ---
 
-## 📌 Versioning
-- **Current Version**: `0.1.2`
-- **Single Source of Truth**: Defined strictly in `AppConstants.cs` (`AppConstants.AppVersion`). All components, UI titles, export headers, and metadata reference this single constant.
+## Layout
+
+Each **tab** (up to 10, reorderable, restored at startup) has two resizable panels:
+
+- **Left**: the file list of the current folder, with the *Folder contents* panel under it.
+- **Right**: the preview / editor of the selected file, with the find bar, the *Outline* panel and a footer (path, line counter, encoding, line endings).
+
+On top: address bar, back / forward / up, drives, favorites, the global **Snap List** and Settings. Panel sizes, the open file, sort and filter of each tab are saved in `config.json`.
+
+## File list
+
+- Compact list with *Name*, *Size*, *Modified* columns; folders and files mixed, sorted by **last modified first** by default. Click a column to sort by it (dates and sizes start descending, names A-Z).
+- **Search bar** (magnifier button or `Ctrl+F`): quick filter (`*.ext` or text), *Show all* (also files without an editor extension, shown dimmed) and *In files*.
+- **Folder tree** flyout from the current folder bar, to jump anywhere quickly.
+- **Live updates**: the list and the Folder contents panel follow changes made by other programs (polling every ~2 s, no handle kept on the folders).
+- **Multiple selection** with `Ctrl` / `Shift` + click.
+- **Quick buttons**: `+ TXT` / `+ MD` create a file named with the current date and time and open it in edit mode; `+ folder` creates a folder.
+
+### File operations (right-click or keyboard)
+
+| Action | Keys | Notes |
+|---|---|---|
+| Cut / Copy / Paste | `Ctrl+X` / `Ctrl+C` / `Ctrl+V` | Works with Explorer both ways; copy/move go through the Windows shell (progress window, "replace or skip" question, undo) |
+| Duplicate | | "name - Copy" next to the original |
+| Rename | `F2` | Validation inside the dialog; the open file follows the rename |
+| Delete | `Del` | Asks twice, then moves to the **Recycle Bin**; refused on drives without one (network, USB) |
+| Folder info | | Size, files and subfolders at every level, newest file inside |
+| Open in new tab / Explorer / Terminal, Copy full / WSL path | | |
+
+Rename, delete and move are blocked when they would affect a file with unsaved edits.
+
+### Folder contents panel
+
+Under the list: the files and subfolders of the folder **selected** in the list, without entering it. Double-click opens a subfolder, or a file in its folder. Resizable and collapsible.
+
+### Search in files
+
+`Ctrl+Shift+F` or *In files*: finds a text in the files of the current folder (and subfolders, optional) whose extension is one of the editor extensions. Results are grouped by file with line numbers; clicking one opens the file with the find bar on that match. `.git`, `node_modules` and similar folders, binary files and files over 5 MB are skipped.
+
+## Preview & editor
+
+- **Instant read-only preview** of the files whose extension is enabled in Settings (e.g. `.md`, `.txt`, `.json`, `.sql`, `.bat`); other text files can be previewed on request, never modified. Binary and over 5 MB files are not opened.
+- **Edit mode** (`Ctrl+E`, or double-click), save with `Ctrl+S`. Unsaved changes are never lost: switching file, tab or closing asks first; a file changed on disk by another program is detected before saving.
+- **Encoding and line endings preserved**: UTF-8, UTF-8 BOM, ANSI (Windows-1252); CRLF / LF / CR.
+- **Markdown** shown with syntax colors; **JSON** formatter and validator; word wrap; adjustable font size.
+- **Find in file** (`Ctrl+F` in the preview, `F3` / `Shift+F3`), also in read-only mode, with match counter and *Match case*.
+- **Line counter** in the footer (`Ln 12 / 340`) and **Go to line** (`Ctrl+G` or click on the counter).
+- **Outline** panel: functions, procedures, classes and headings of the open file (PL/SQL, also inside `.txt` files, Python, JavaScript/TypeScript, Markdown). Click an entry to jump to it; the entry you are reading is highlighted while scrolling.
+
+## Snap List
+
+A global "basket" of files and folders, shared by all tabs: add items with the `+` button on each row, `Ins` or the right-click menu (multiple selection supported), or all folders/files of the current folder at once. Export with full path or name only, with or without extension: clipboard, Notepad, `.txt`, `.csv`. It can be detached into a floating always-on-top window.
+
+## Keyboard shortcuts
+
+`F1` shows the full list (also from Settings → *Keyboard Shortcuts*). The main ones:
+
+| Keys | Action |
+|---|---|
+| `Alt+Left` / `Alt+Right` / `Alt+Up`, `Backspace` | Back / forward / parent folder |
+| `F5` | Refresh |
+| `Ctrl+L` | Address bar |
+| `Ctrl+F` / `Ctrl+Shift+F` | Quick filter (or find in file, from the preview) / search in files |
+| `Ctrl+T` / `Ctrl+W` / `Ctrl+Tab` | New / close / next tab |
+| `Ctrl+E` / `Ctrl+S` / `Ctrl+G` | Edit mode / save / go to line |
+| `Ctrl+X` / `Ctrl+C` / `Ctrl+V`, `F2`, `Del`, `Ins` | Cut / copy / paste, rename, Recycle Bin, Snap List |
+
+## Settings
+
+Dark / light theme, accent color, editor extensions (the files that open in the preview, can be edited and are searched), preview font size, Snap List defaults. Window position (multi-monitor), tabs and favorites are restored at startup. Only one instance runs at a time: launching it again brings the open window to the front.
 
 ---
 
-## 🌐 UI Language
-- **Strictly English**: All UI labels, context menus, tooltips, dialogs, error messages, and exports are in English (e.g., *Copy*, *Open in New Tab*, *Add to Snap List*).
+## Tech stack
 
----
+- **.NET 8** (`net8.0-windows10.0.26100.0`), **WinUI 3** / Windows App SDK `1.6.x`, unpackaged and self-contained
+- **MVVM** with `CommunityToolkit.Mvvm`
+- Fluent Design with Mica backdrop
 
-## 🚀 Key Architectural Changes & Features
+## Build & run
 
-### 1. Unified Editor View (Single Main Workspace)
-- Eliminates the previous separation between "Lists" and "Editor" views.
-- Every workspace tab (up to 10 tabs, full save/restore in `config.json`, drag-and-drop reordering) features a resizable two-panel layout:
-  - **Left Panel**: Navigation and file listing (with `Flat` / `Tree` switch).
-  - **Right Panel**: Text editor for `.md`, `.txt`, `.json` (and unlockable read-only text files).
+```bash
+dotnet build -c Debug
+```
 
-### 2. Left Panel: Permanent Flat View & Quick Folder Tree Dropdown
-- **Permanent Flat Table View**:
-  - The left panel always keeps the clean, fast tabular list view (`Name`, `Size`, `Modified` columns, sortable and filterable).
-  - Eliminates the disruptive full-panel switch between Flat and Tree.
-- **Quick Folder Tree Dropdown (`📁 CurrentPath  Tree ▾`)**:
-  - The current folder bar acts as an interactive button.
-  - Clicking it opens the **Folder Tree Flyout**, already expanded to the active folder.
-  - Users can browse drives and subfolders with lazy-loading chevrons, click any folder to navigate immediately in the background, or double-click to navigate and close the flyout.
+Then start `Start_DirSnap2.bat` (it runs `bin\x64\Debug\net8.0-windows10.0.26100.0\win-x64\DirSnap2.exe`). Close the running app before rebuilding: the single-instance app keeps the exe locked.
 
-### 3. Global "📋 Snap List" Widget
-Replaces the old Lists tab with an intuitive "shopping cart" paradigm:
-- **Global & Persistent**: Shared across all open tabs.
-- **Adding Items**:
-  - Inline quick `[+]` button on each row in list/tree.
-  - Context menu (*Add to Snap List*, supports multi-selection).
-  - Keyboard shortcut (`Insert`).
-  - Batch action buttons in the navigation bar (`+ N folders` / `+ N files`).
-- **Header Flyout & Detachable Window (`Detach`)**:
-  - Main header widget: `📋 Snap List (N)` with real-time item badge.
-  - Clicking opens a modern Flyout:
-    - View items, remove individual items (`Del`, double click, or trash icon), or `Clear All`.
-    - Live formatting toggles: `Full Path` and `With Extension`.
-    - Export actions:
-      - `📝 Send to Notepad`
-      - `📋 Copy to Clipboard`
-      - `💾 Export to .txt`
-      - `📊 Export to .csv`
-    - `📌 Detach` button: Detaches the Snap List into a standalone floating, always-on-top window for cross-tab multi-monitor workflows, dockable back into the main window at any time.
+- `config.json` (settings, tabs, Snap List) is created next to the exe, with an automatic `config.json.bak`; `config.example.json` is the starting template.
+- Logs: `logs\dirsnap2.log` next to the exe.
 
-### 4. Text Editor & File Handling
-- Native support for viewing and editing `.md`, `.txt`, `.json`.
-- Unlock mode to view/edit arbitrary text files.
-- JSON auto-formatting / beautifier.
-- Strict preservation of file encoding (UTF-8, UTF-8 BOM, ASCII, etc.) and original newline style (`CRLF` vs `LF`).
-- Word wrap toggle and split-pane ratio persistence.
+## Project structure
 
----
-
-## 🛠️ Tech Stack & Setup
-- **Framework**: .NET 8 (`net8.0-windows10.0.26100.0`)
-- **UI Platform**: WinUI 3 / Windows App SDK (`1.6.x`), unpackaged mode (`WindowsPackageType=None`, `WindowsAppSDKSelfContained=true`)
-- **Styling**: Windows 11 Fluent Design, Mica backdrop, Dark/Light theme switching
-- **Architecture**: MVVM with `CommunityToolkit.Mvvm`
-
----
-
-## 📋 Implementation Roadmap & Checklist
-
-- [x] **Phase 1: Project Setup & Foundation**
-  - [x] Solution & `.csproj` configuration (WinUI 3 unpackaged, .NET 8)
-  - [x] Single-source versioning (`0.0.1` in `AppConstants.cs`)
-  - [x] `app.manifest` (PerMonitorV2 DPI + long paths)
-  - [x] `.gitignore` & `config.example.json`
-  - [x] Initial build & restore verification
-  - [x] `README.md` tracking
-- [x] **Phase 2: Core Models & Configuration Service**
-  - [x] App settings & workspace tab state persistence (`config.json`, `ConfigService`)
-  - [x] File system models (`FSItem`, `DriveInfoModel`, `TreeNodeItem`)
-  - [x] File system service (`FileSystemService` for drives, scanning, tree lazy loading, sorting, filtering, explorer, terminal)
-  - [x] Text file handler (`TextFileService` with 5MB limit, binary detection, encoding/BOM/line endings preservation, JSON formatter)
-  - [x] Snap List global manager & export pipeline (`SnapListService` for cart management, live toggles, clipboard, Notepad, .txt/.csv)
-- [x] **Phase 3: Unified Workspace UI & Navigation**
-  - [x] TabView supporting up to 10 tabs, close/add, drag-reorder
-  - [x] Resizable two-panel splitter layout with persistent width
-  - [x] Left panel: `Flat` view (columns, sorting, filtering, quick counters)
-  - [x] Left panel: `Tree` view (hierarchical lazy loading, file/folder nodes)
-  - [x] Address bar, back/forward/up navigation, drives menu & favorites
-- [x] **Phase 4: Global Snap List Widget & Detachable Window**
-  - [x] Header badge widget `📋 Snap List (N)`
-  - [x] Pop-up flyout with live preview, deletion & formatting toggles
-  - [x] Export actions (Clipboard, Notepad, .txt, .csv)
-  - [x] Detachable floating window (`📌 Detach`) with always-on-top and live sync
-- [x] **Phase 5: Text Editor, Preview & File Classification**
-  - [x] Instant read-only preview on single-click selection for configured extensions (`.md`, `.txt`, `.json`)
-  - [x] Non-configured file protection with placeholder and "Unlock Preview" gate (text <= 5MB)
-  - [x] Syntax-colored Markdown viewer reproducing v1 palette with crisp white text in dark mode
-  - [x] Zebra striping: subtle alternating row backgrounds in files/folders list
-  - [x] Tree flyout auto-selection: current directory node automatically selected and highlighted
-  - [x] Full accent color styling on action buttons (`Go`, `Snap List`, `Unlock to Edit`, `Save`, `Unlock Preview`)
-  - [x] "Unlock to Edit" mode for safe file modification and non-locking file inspection
-  - [x] Text editor panel with monospace typography, line ending and encoding detection, JSON beautifier
-- [x] **Phase 6: Visual Polish, Tree Sync & Settings Dialog**
-  - [x] Interchangeable Flat / Tree synchronization (expanding tree hierarchy down to active folder)
-  - [x] Real-time Accent Color palette (`blue`, `green`, `purple`, `teal`, `orange`) applied to controls and active pills
-  - [x] Differentiated Fluent icons and distinctive color palettes for folders and file types (matching v1)
-  - [x] Modern Settings & About Dialog (Theme, Accents, Quick-Preview Extensions chip manager, Snap List defaults, About v0.0.1)
-  - [x] Format JSON action & validation
-  - [x] Encoding & newline preservation (`CRLF` / `LF`, UTF-8, UTF-8 BOM, ANSI)
-  - [x] Read-only unlock for non-standard text files
-- [x] **Phase 8: Version 0.0.2 Polish & Animated About Tribute**
-  - [x] Version bump to `0.0.2` in `AppConstants.cs`
-  - [x] Settings dialog dark/light theme alignment and widened layout (520px width)
-  - [x] Dedicated Animated About window with bouncing Alpha Studio logo (`assets/as_logo_trasp.jpg`) paying tribute to v1 and PrinT-fILes
-  - [x] Prominent accent color highlighting on active workspace tab header
-  - [x] Accent color row selection highlight (`AppAccentSubtleBrush` and `AppAccentBrush` stroke) on selected file/folder
-  - [x] Warm yellow foreground (`#FFD166`) on current opened file name in editor header
-  - [x] Neutral uncolored toggle styling for Word Wrap button
-  - [x] Per-tab selected file memory: switching tabs immediately restores the previously selected file, editor/preview state, and scroll position.
-  - [x] Per-tab file persistence across restarts: each tab's active file is saved in `config.json` and restored on launch.
-  - [x] V1 compact typography: monospaced font (`Consolas, Cascadia Code, Courier New`) at 11.5pt across Name, Size, and Modified columns.
-  - [x] V1 high-density row layout: ultra-compact row height (22px with `ItemContainerStyle` MinHeight 22px) displaying ~25+ items simultaneously on screen.
-  - [x] Tree flyout automatic scroll & bold/accent highlight: automatically scrolls and highlights the active folder node in bold with subtle accent background tint.
-  - [x] Restricted `Unlock to Edit` visibility: visible exclusively for file extensions enabled in Settings; non-configured files unlock for read-only inspection only.
-  - [x] Active tab header accent styling: current tab in `MainTabView` is highlighted with the user's accent color (subtle background tint, accent icon and stroke).
-  - [x] Smart `Save` button visibility: clean UI where `Save` button appears only when the file has unsaved edits (`IsEditorDirty`).
-  - [x] Markdown syntax highlighting in preview mode replicating v1 theme palette (Headings cyan, bold yellow, code green, lists orange, links blue)
-  - [x] Tree view text & icon rendering fix (`Content.Name`, `Content.Glyph`, `Content.GlyphBrush`)
-  - [x] Dedicated Current Folder header bar above file list/tree: displays clean current folder name (e.g. `MusicAtlas2  Tree ▾`) with full path tooltip, eliminating duplication with the top global address bar.
-  - [x] Top Address Bar synchronization with active tab navigation + `[ Go ]` action button
-  - [x] Unified sorting by Modified time (`mtime`) and Size (`size`) mixing folders and files like v1
-  - [x] Real-time and AppWindow.Closing tab state persistence (`Path`, `SortCol`, `SortDesc`, `Mode`, `SelectedFile`)
-  - [x] Multi-monitor geometry save/restore with monitor index detection (`WindowPlacementService`)
-  - [x] Dark / Light theme switching with live runtime updates (`ThemeService`)
-  - [x] Accent color palette with Blue default, Green, Purple, Teal, Orange
-  - [x] Keyboard shortcuts (`Ins`, `F5`, `Ctrl+S`, `Enter`, `Del`, `Alt+Up/Left/Right`)
-  - [x] Windows context menu actions (Open in Explorer, Open in Terminal, Copy Full/WSL Path)
-- [x] **Phase 9: Version 0.0.4 - Favorites Star, Tree Navigation & Show-All Dimmed Styling**
-  - [x] Version bump to `0.0.4` across `AppConstants.cs`, `DirSnap2.csproj`, and `app.manifest`
-  - [x] Dynamic Favorite Star Icon: Filled star (`\uE735`) when the active folder is among favorites, outline star (`\uE734`) when not
-  - [x] Immediate state update when navigating via the address bar `[ Go ]` button or pressing Enter
-  - [x] Bidirectional updates across tab switching, inline navigation (table, tree, drives, places), and favorite toggle
-  - [x] Robust path normalization in `ConfigService` (`NormalizePath`) handling trailing slashes, drive roots (`C:\` vs `C:`), and case insensitivity
-  - [x] Dynamic tooltip on favorite button ("Add current folder to Favorites" / "Remove current folder from Favorites")
-  - [x] Thread-safe file logging system (`AppLogger`) writing to `logs/dirsnap2.log` and `crash.log` with global unhandled exception tracking
-  - [x] Hierarchical Tree auto-expansion down to the active nested folder (`SyncTreeToCurrentPath`) with accent highlighting and automatic viewport scrolling (`StartBringIntoView`)
-  - [x] "Show All" Dimmed Items Styling: Files and folders visible only when "Show all" is checked (non-editor extensions and hidden/system items) are automatically styled in soft gray ("grigetto", `#8E95A0` in Dark theme, `#6C727E` in Light theme) for both text and icons, keeping primary editor files bright and prominent.
-  - [x] Editor Dirty & Save Button Visibility Fix: Fixed bug where the "Save" button and asterisk `*` prematurely appeared upon selecting or previewing locked/unmodified files due to internal TextBox data binding changes triggering `TextChanged`. Added `OriginalText` diff tracking, `IsLoadingFile` guard, and strict `IsEditorLocked` checks so the Save button strictly only appears when actual user edits diverge from saved content.
-  - [x] Pure Folder Tree Navigation & Auto-Close: Filtered out files from the "Folder Tree" flyout (`SyncTreeToCurrentPath` and `HierarchicalTreeView_Expanding`), showing exclusively directories for quick and distraction-free folder jumping. Double-clicking any folder or pressing `Enter` now navigates directly to the target folder and automatically closes the dropdown flyout.
-  - [x] Contextual Toolbar Controls Visibility: Word Wrap Toggle, Format JSON, and the Read-Only badge are now strictly displayed only when an active text file is being previewed or edited (`IsPreviewUnlocked`). They automatically hide when non-text files (images, audio .wav, videos, binaries, oversized files) or no files are selected.
-- [x] **Phase 10: Version 0.0.7 - Unsaved Changes Protection, Config Resilience, Toolbar Toggles & Preview Enhancements**
-  - [x] Version bump to `0.0.7` across `AppConstants.cs`, `DirSnap2.csproj`, and `app.manifest`
-  - [x] Unsaved Changes Protection Dialog: Prevents accidental loss of edits when navigating away, switching files in the table or tree, closing tabs, or exiting the application with Save, Discard, and Cancel options.
-  - [x] Resilient Configuration Persistence: Implemented automatic `config.json.bak` generation, atomic temp file write/replacement, and automatic corruption recovery preserving malformed files as `config.corrupted_*.json`.
-  - [x] Production Logging System: Replaced transient `Debug.WriteLine` calls across all services and windows with structured, thread-safe `AppLogger` logging.
-  - [x] Robust Clipboard & Export Error Handling: Guarded clipboard copy operations and file exports with try-catch blocks and instant user feedback in the status bar.
-  - [x] Resource Leak Prevention: `WorkspaceTabViewModel` implements `IDisposable` to cleanly unregister event handlers (`ConfigChanged`) when closing tabs.
-  - [x] Accent Highlights: File/folder selection rows and the global address bar path text now display with the active accent color (`AppAccentBrush`) across both Light and Dark themes.
-  - [x] WinUI 3 ToggleButton Fix: Aligned `ToolbarToggleButtonStyle` with WinUI 3's `CommonStates` model so `Unlock` and `Word Wrap` icons cleanly toggle on and off.
-  - [x] Preview Vertical Scrollbar: Enabled automatic vertical scrolling (`VerticalScrollBarVisibility="Auto"`) in the text editor whenever content overflows the viewport height.
-  - [x] Floating `<TOP>` Smooth Scroll Button: Added dynamic floating button in the editor bottom-right corner that appears when scrolling down (>80px) and smoothly scrolls back to the beginning on click.
-- [x] **Phase 11: Version 0.0.8 - Dark Mode List Text Contrast, Single Instance & Preview Font Size**
-  - [x] Version bump to `0.0.8` across `AppConstants.cs`, `DirSnap2.csproj`, and `app.manifest`
-  - [x] File & Folder List Contrast Fix: Fixed `DetailsForegroundBrush` in `FSItem.cs` so `Size` and `Modified` date text are rendered in clear white (`DarkNormalTextBrush`) under dark mode instead of falling back to a dark/black brush.
-  - [x] Single Instance Application: Implemented named system Mutex (`Program.cs`) with `DISABLE_XAML_GENERATED_MAIN`. When launched while already running, DirSnap 2 activates and restores the existing window (`ShowWindow`/`SetForegroundWindow`) and the secondary instance exits immediately without opening a duplicate window.
-  - [x] Preview Window Font Size Setting: Added configurable `EditorFontSize` in `AppConfig` and Settings dialog (Appearance panel). Users can adjust the font size specifically for the text editor / markdown preview panel via spin box, direct input, or quick presets (`11`, `12`, `13 (Def)`, `14`, `16`, `18 pt`) with real-time live preview and immediate workspace sync without affecting the rest of the application.
-- [x] **Phase 12: Version 0.0.9 - Data-Loss Fixes, Line Endings, ANSI Encoding & Background Scans**
-  - [x] Version bump to `0.0.9` across `AppConstants.cs`, `DirSnap2.csproj`, and `app.manifest`
-  - [x] Tab Switch No Longer Discards Edits: a file that is unlocked or has unsaved changes is never re-read from disk when its tab becomes active again (`SyncSelectedFile`), which also makes the exit prompt work for dirty files in background tabs.
-  - [x] Selection No Longer Loads Files Behind the Dialog: `SelectedItem` changes only drive the row highlight; files are loaded exclusively by the view after the unsaved-changes prompt. List rebuilds (refresh, filter, sort, settings) no longer reload the open file over pending edits.
-  - [x] Line Endings Preserved on Save: the lone `CR` line endings returned by the WinUI 3 `TextBox` are normalized before writing, and the dirty flag uses a newline-insensitive comparison (undoing an edit clears the `*`). CR-only files are detected and kept as `CR`.
-  - [x] ANSI (Windows-1252) Support: `CodePagesEncodingProvider` is registered, so `€` and typographic quotes in non-UTF-8 files are read and saved correctly.
-  - [x] Save Keeps File Properties: `File.Replace` preserves attributes (hidden), creation time and permissions, with a plain-move fallback for volumes that do not support it.
-  - [x] Lock / Format JSON Consistency: locking a file with pending edits keeps them saveable; Format JSON in read-only mode is a view-only beautify that becomes a pending edit when the file is unlocked.
-  - [x] "Don't Save" Restores the Original Text in the editor instead of leaving the discarded edits on screen.
-  - [x] Failed Folder Scans Clear the List (no stale content under a new path); Back/Forward skip folders that no longer exist.
-  - [x] Background Folder Scans: `ScanDirectory` runs on a worker thread with stale-result protection; the list is swapped with a single `Reset` notification (`BulkObservableCollection`).
-  - [x] Live Folder Updates: the visible tab re-scans its folder every ~2 s (slower on slow folders) and rebuilds the list only when files were added, changed or removed by other programs. Polling keeps no handle open on the folder, so it never blocks renaming/deleting it elsewhere. A read-only preview also follows the file on disk.
-  - [x] "File Changed on Disk" Protection: saving a file that another program modified after it was opened asks to Overwrite, Reload from Disk or Cancel instead of silently overwriting.
-  - [x] Preview-Only for Non-Configured Extensions: the edit toggle is shown only for the extensions enabled in Settings; other text files can be previewed but never modified.
-  - [x] No Needless Prompts: folder navigation keeps the open file and its pending edits, so the unsaved-changes dialog appears only when opening another file, closing the tab or exiting. Nothing is ever saved automatically.
-  - [x] Unencodable Characters: saving a legacy-encoded (ANSI) file refuses characters the encoding cannot store instead of writing `?`.
-  - [x] Selected Folders use the accent color in the list, like selected files.
-  - [x] Keyboard Shortcuts: global accelerators for `F5`, `Alt+Left/Right/Up`, `Ctrl+L` (address bar), `Ctrl+F` (filter), `Ctrl+T/W` and `Ctrl+Tab` (tabs), `Ctrl+S`, `Ctrl+E` (edit mode), `Backspace` (parent folder, in the list) and `F1`. The full list is shown by `F1` and by the *Keyboard Shortcuts* button in Settings (`ShortcutsView`).
-  - [x] Open in Terminal: PowerShell fallback starts through `WorkingDirectory` (paths with apostrophes), Windows Terminal handles drive roots (`C:\`).
-- [x] **Phase 13: Version 0.1.0 - Find in File, Code Outline, Folder Contents Panel & Saved Panel Sizes**
-  - [x] Version bump to `0.1.0` across `AppConstants.cs`, `DirSnap2.csproj`, and `app.manifest`
-  - [x] Find in File: find bar above the preview/editor, also in read-only mode. `Ctrl+F` opens it when the preview has focus (the quick filter otherwise), pre-filled with the selected text; `Enter`/`Shift+Enter` and `F3`/`Shift+F3` go to the next/previous match, `Esc` closes it. Match counter ("3 of 12") and saved *Match case* toggle. In Markdown all matches are highlighted (current one in orange); in text files the current match is selected. Scrolling to a match works in two steps (coarse jump from the line position, then exact correction) because character rects are not reliable for text far from the view.
-  - [x] Code Outline panel (right side, closable, resizable, width and open state saved): lists functions and classes for Python, JavaScript/TypeScript (functions, classes, methods, arrow functions, object methods), PL/SQL (packages and package bodies with their procedures/functions, standalone procedures/functions, triggers, types, views) and Markdown headings (`CodeOutlineService`). `.txt` files get the PL/SQL outline when their content contains PL/SQL definitions. Clicking an entry scrolls to its line and highlights the name.
-  - [x] Folder Contents panel under the file list: shows the subfolders and files of the folder selected in the list without entering it (same Show all / extension rules). Double-click a subfolder to open it, or a file to open its folder and preview it. Height and collapsed state saved in config.
-  - [x] Navigation to another folder empties the preview, unless the open file has unsaved edits (then it stays, with its edits).
-  - [x] The file list panel width is now saved too (`left_panel_width`).
-- [x] **Phase 14: Version 0.1.1 - Copy, Rename, Delete to Recycle Bin, Quick New Files & Sort by Last Modified**
-  - [x] Version bump to `0.1.1` across `AppConstants.cs`, `DirSnap2.csproj`, and `app.manifest`
-  - [x] Copy (right-click or `Ctrl+C` in the list): puts the file/folder on the clipboard like Explorer, ready to paste in Explorer or other apps.
-  - [x] Rename (right-click or `F2`): dialog with the name selected without its extension, validation inside the dialog (invalid characters, existing name), case-only renames supported. The open file follows the rename; blocked when it would affect a file with unsaved edits.
-  - [x] Delete (right-click or `Del`): asks twice, then moves the item to the Recycle Bin (`RecycleBinService`, `SHFileOperation` with undo). Refused on network and removable drives, where Windows would delete permanently. Blocked when it would affect a file with unsaved edits.
-  - [x] `+ TXT` / `+ MD` buttons in the list header (instead of the "Files & Folders" label): create a file named with the current date/time (`2026-11-11_21-35.txt`, `_2`, `_3`... if it exists) in the current folder and open it in edit mode.
-  - [x] Default sort is now *last modified first*, in the list and in the Folder Contents panel. Existing tabs are switched once (`sort_mtime_default_applied`); later header clicks are kept.
-- [x] **Phase 15: Version 0.1.2 - Cut / Paste / Duplicate, New Folder, Search in Files & Compact Search Bar**
-  - [x] Version bump to `0.1.2` across `AppConstants.cs`, `DirSnap2.csproj`, and `app.manifest`
-  - [x] Cut (`Ctrl+X`) and Paste (`Ctrl+V`, also right-click on an item or on the empty part of the list): pastes into the current folder the files/folders copied or cut in DirSnap 2, Explorer, mail... Copy and move go through the Windows shell (`ShellFileOperations`, `SHFileOperation`): Windows shows its progress window and asks when a name already exists; undo works from Explorer. A copy into the same folder gets "name - Copy"; after a move the clipboard is cleared and an open moved file is reopened from its new place.
-  - [x] Duplicate (right-click): copy next to the original ("name - Copy.ext").
-  - [x] New folder button (and right-click on the empty part of the list): asks for the name, then selects the new folder.
-  - [x] Search in Files (`Ctrl+Shift+F` or *In files*): finds a plain text in the files of the current folder (optionally its subfolders) whose extension is one of the editor extensions (`FileSearchService`). Skips `.git`, `node_modules` and similar folders, junctions, binary files and files over 5 MB; stops at 2000 lines. Results grouped by file with the line number and the match in bold; clicking one opens the file with the find bar on that match. *Subfolders* and *Match case* are saved.
-  - [x] Compact search bar: the quick filter row is hidden until the magnifier button (or `Ctrl+F`) opens it; closing it clears the filter. It stays visible while a filter is typed; a dot on the magnifier tells that *Show all* is on while the bar is hidden. *Show all* and *In files* are accent toggle buttons.
+| Folder | Content |
+|---|---|
+| `Models` | Config (`AppConfig`), list items (`FSItem`), tree nodes, Snap List items, search results |
+| `Services` | File system scan, text files (encoding/line endings), config, Snap List, outline parser, search in files, folder totals, Recycle Bin and shell copy/move, theme, window placement, logging |
+| `ViewModels` | `MainViewModel` (tabs, Snap List, address bar) and `WorkspaceTabViewModel` (one tab: folder, list, open file) |
+| `Views` | `WorkspaceTabView` (split in partial files by feature: file actions, find & outline, folder contents, search in files, folder info, line navigation), Settings, About, Snap List window, shortcuts |
