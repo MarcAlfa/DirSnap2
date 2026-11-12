@@ -109,6 +109,36 @@ public sealed partial class AiChatPanel : UserControl
 
     private void ModelBadge_Click(object sender, RoutedEventArgs e) => SettingsRequested?.Invoke(this, EventArgs.Empty);
 
+    /// <summary>Builds the provider list each time, so the ticked item and the key notes are current.</summary>
+    private void ProviderMenu_Opening(object sender, object e)
+    {
+        ProviderMenu.Items.Clear();
+        if (_vm == null)
+            return;
+
+        foreach (var option in _vm.GetProviderOptions())
+        {
+            var item = new RadioMenuFlyoutItem
+            {
+                Text = option.Label,
+                GroupName = "AiProvider",
+                IsChecked = option.IsCurrent,
+                Tag = option.Id
+            };
+            item.Click += (s, _) =>
+            {
+                if (s is RadioMenuFlyoutItem { Tag: string id })
+                    _vm?.SetProvider(id);
+            };
+            ProviderMenu.Items.Add(item);
+        }
+
+        ProviderMenu.Items.Add(new MenuFlyoutSeparator());
+        var settings = new MenuFlyoutItem { Text = "AI settings...", Icon = new FontIcon { Glyph = "" } };
+        settings.Click += (_, _) => SettingsRequested?.Invoke(this, EventArgs.Empty);
+        ProviderMenu.Items.Add(settings);
+    }
+
     private void NewChat_Click(object sender, RoutedEventArgs e)
     {
         _vm?.NewChat();

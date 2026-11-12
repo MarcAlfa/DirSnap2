@@ -129,16 +129,33 @@
 
             <TextBlock Grid.Column="0" Text="✨ AI Assistant" FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center" />
 
-            <Button Grid.Column="1" x:Name="ModelBadgeButton" Click="ModelBadge_Click"
-                    HorizontalAlignment="Left" Margin="4,0,0,0" Padding="8,2" CornerRadius="10"
-                    Background="{ThemeResource AppAccentSubtleBrush}" BorderThickness="0"
-                    ToolTipService.ToolTip="{Binding ModelBadgeToolTip}">
-                <StackPanel Orientation="Horizontal" Spacing="5">
-                    <TextBlock Text="{Binding ModelBadgeText}" FontSize="10.5" FontWeight="SemiBold"
-                               Foreground="{ThemeResource AppAccentBrush}" TextTrimming="CharacterEllipsis" MaxWidth="170" />
-                    <FontIcon Glyph="&#xE713;" FontSize="10" Foreground="{ThemeResource AppAccentBrush}" />
-                </StackPanel>
-            </Button>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" Margin="4,0,0,0"
+                        HorizontalAlignment="Left" VerticalAlignment="Center">
+                <!-- Quick provider switch: the next message goes to the chosen provider, the chat is kept -->
+                <Button x:Name="ProviderButton" Padding="8,2" CornerRadius="10"
+                        Background="{ThemeResource AppAccentSubtleBrush}" BorderThickness="0"
+                        ToolTipService.ToolTip="Switch provider (the conversation is kept: the next message goes to the new one)">
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                        <TextBlock Text="{Binding ProviderBadgeText}" FontSize="10.5" FontWeight="SemiBold"
+                                   Foreground="{ThemeResource AppAccentBrush}" />
+                        <FontIcon Glyph="&#xE70D;" FontSize="8" Foreground="{ThemeResource AppAccentBrush}" />
+                    </StackPanel>
+                    <Button.Flyout>
+                        <MenuFlyout x:Name="ProviderMenu" Placement="BottomEdgeAlignedLeft" Opening="ProviderMenu_Opening" />
+                    </Button.Flyout>
+                </Button>
+
+                <Button x:Name="ModelBadgeButton" Click="ModelBadge_Click"
+                        Padding="8,2" CornerRadius="10"
+                        Background="{ThemeResource AppAccentSubtleBrush}" BorderThickness="0"
+                        ToolTipService.ToolTip="{Binding ModelBadgeToolTip}">
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                        <TextBlock Text="{Binding ModelBadgeText}" FontSize="10.5" FontWeight="SemiBold"
+                                   Foreground="{ThemeResource AppAccentBrush}" TextTrimming="CharacterEllipsis" MaxWidth="170" />
+                        <FontIcon Glyph="&#xE713;" FontSize="10" Foreground="{ThemeResource AppAccentBrush}" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
 
             <Button Grid.Column="2" Click="ExportChat_Click" Padding="6,3" FontSize="11"
                     IsEnabled="{Binding HasMessages}"
@@ -163,6 +180,7 @@
                 </StackPanel>
             </Button>
             <ToggleButton Grid.Column="4" x:Name="PinToggle" Visibility="Collapsed" IsChecked="True"
+                          Style="{StaticResource ToolbarToggleButtonStyle}"
                           Click="PinToggle_Click" Padding="6,3" FontSize="11"
                           ToolTipService.ToolTip="Keep the window always on top">
                 <FontIcon Glyph="&#xE718;" FontSize="11" />

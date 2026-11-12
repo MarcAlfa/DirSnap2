@@ -45,6 +45,17 @@ public static class AiProviders
             new[] { "llama3.1", "qwen2.5-coder", "deepseek-chat" }, false, true),
     };
 
+    /// <summary>Short label for the header badge.</summary>
+    public static string ShortName(string id) => id switch
+    {
+        Gemini => "Gemini",
+        OpenAi => "OpenAI",
+        Anthropic => "Claude",
+        Moonshot => "Kimi",
+        OpenAiCompatible => "Compatible",
+        _ => id
+    };
+
     public static AiProviderInfo Get(string? id) =>
         All.FirstOrDefault(p => string.Equals(p.Id, id, StringComparison.OrdinalIgnoreCase)) ?? All[0];
 }

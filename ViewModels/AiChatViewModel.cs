@@ -57,6 +57,9 @@ public sealed partial class AiChatViewModel : ObservableObject
     private string _snapListLabel = "Snap List (0)";
 
     [ObservableProperty]
+    private string _providerBadgeText = string.Empty;
+
+    [ObservableProperty]
     private string _modelBadgeText = string.Empty;
 
     [ObservableProperty]
@@ -123,6 +126,7 @@ public sealed partial class AiChatViewModel : ObservableObject
     {
         var s = AiKeyStore.ResolveSettings(_configService.Current);
         var provider = AiProviders.Get(s.Provider);
+        ProviderBadgeText = AiProviders.ShortName(provider.Id);
         ModelBadgeText = s.Model;
         bool missingKey = provider.RequiresApiKey && string.IsNullOrWhiteSpace(s.ApiKey);
         ModelBadgeToolTip = missingKey
@@ -132,6 +136,48 @@ public sealed partial class AiChatViewModel : ObservableObject
             StatusText = $"Add your {provider.DisplayName} API key in Settings → AI Assistant (click the model badge).";
         else if (StatusText.StartsWith("Add your", StringComparison.Ordinal))
             StatusText = string.Empty;
+    }
+
+    /// <summary>One entry of the header's provider menu.</summary>
+    public sealed record ProviderOption(string Id, string Label, bool IsCurrent);
+
+    /// <summary>All providers, with the model each one would use and a note when its key is missing.</summary>
+    public IReadOnlyList<ProviderOption> GetProviderOptions()
+    {
+        var config = _configService.Current;
+        var current = AiProviders.Get(config.AiProvider).Id;
+        return AiProviders.All.Select(p =>
+        {
+            string model = config.AiModels.TryGetValue(p.Id, out var m) && !string.IsNullOrWhiteSpace(m)
+                ? m.Trim()
+                : p.DefaultModel;
+            string label = $"{p.DisplayName}  ·  {model}";
+            if (p.RequiresApiKey && !AiKeyStore.HasKey(config, p.Id))
+                label += "  (no API key)";
+            return new ProviderOption(p.Id, label, p.Id == current);
+        }).ToList();
+    }
+
+    /// <summary>
+    /// Switches provider from the header without opening Settings. The conversation is kept:
+    /// the whole history goes to the new provider with the next message.
+    /// </summary>
+    public void SetProvider(string providerId)
+    {
+        var provider = AiProviders.Get(providerId);
+        if (string.Equals(_configService.Current.AiProvider, provider.Id, StringComparison.OrdinalIgnoreCase))
+            return;
+        _configService.Current.AiProvider = provider.Id;
+        _configService.Save();
+        AppLogger.Info($"[AiChat] Provider switched to {provider.Id}");
+        RefreshSettings();
+        if (!StatusText.StartsWith("Add your", StringComparison.Ordinal))
+        {
+            bool missingKey = provider.RequiresApiKey && !AiKeyStore.HasKey(_configService.Current, provider.Id);
+            StatusText = missingKey
+                ? $"No API key for {provider.DisplayName}: add it in Settings → AI Assistant (click the model badge)."
+                : HasMessages ? $"Switched to {provider.DisplayName}: the next message continues this chat there." : string.Empty;
+        }
     }
 
     /// <summary>Follows every tab, so the list updates when a file is opened or the folder changes.</summary>

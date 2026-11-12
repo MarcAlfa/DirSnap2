@@ -175,3 +175,7 @@ Development history, from the first setup to the current version. The [README](R
   - [x] Version bump to `0.2.3` across `AppConstants.cs`, `DirSnap2.csproj`, and `app.manifest`
   - [x] Folder tree flyout (`Tree`): a single click on a folder goes to it in the list and closes the flyout (it used to need a double click); the chevron only expands. The old double-click handlers are gone.
   - [x] Expanding a branch works on the first click: the chevron is shown only on folders with visible subfolders (same hidden/system rule as the list), and the expansion is re-asserted after children are loaded during `Expanding` (WinUI could drop it).
+- [x] **Phase 22: Version 0.2.4 - Quick Provider Switch in the AI Assistant, Accent Pin**
+  - [x] Version bump to `0.2.4` across `AppConstants.cs`, `DirSnap2.csproj`, and `app.manifest`
+  - [x] AI Assistant header: new provider badge (Gemini, OpenAI, Claude, Kimi, Compatible) next to the model badge, with a menu of every provider, the model each one uses and a "(no API key)" note, plus a shortcut to the AI settings. The choice is saved in the config and the conversation is kept: the next message sends the whole history to the new provider.
+  - [x] Detached window: the "keep always on top" pin uses the app's toolbar toggle style (accent fill when on) instead of the system accent.
