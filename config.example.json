@@ -13,7 +13,7 @@
     ".txt",
     ".json"
   ],
-  "editor_wrap": true,
+  "editor_wrap": false,
   "editor_font_size": 13,
   "ai_provider": "gemini",
   "ai_models": {},

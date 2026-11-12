@@ -166,3 +166,8 @@ Development history, from the first setup to the current version. The [README](R
   - [x] New provider *Moonshot AI (Kimi)*: OpenAI-compatible API at the fixed address `https://api.moonshot.ai/v1`, with its own encrypted key (Ollama keeps the OpenAI-compatible slot). Suggested models `kimi-k3.1-pro`, `kimi-k3.1-pro-highspeed`.
   - [x] AI context selector: Snap List and Folder List on top, then a list (5 rows, then scroll) of every tab with an open file, named "Tab 2 - folder" with the file name; only the current tab is ticked, and switching tab ticks the new current one. *Compare Tabs* ticks all tabs with a file when fewer than two are ticked.
   - [x] Settings: wider *Max context size* box with thousands separators and an example of what the limit means.
+- [x] **Phase 20: Version 0.2.2 - AI Button State, Editor Toolbar Order, Word Wrap Off by Default**
+  - [x] Version bump to `0.2.2` across `AppConstants.cs`, `DirSnap2.csproj`, and `app.manifest`
+  - [x] `✨ AI` toolbar button: accent-filled while a chat of this session is open (back to normal after *New*), and pulsing (slow fade in/out) while a reply is being thought or written, also when the chat is in the detached window.
+  - [x] Editor toolbar order, left to right: *Save* / *Format JSON* (only when useful, so they do not shift the fixed icons), unlock, find, copy, word wrap, outline (rightmost).
+  - [x] Word wrap is off by default for new tabs and `config.example.json`; tabs saved before are switched off once (`wrap_off_default_applied`), later choices are kept.

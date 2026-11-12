@@ -206,7 +206,7 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
     private bool _editorHasBom;
 
     [ObservableProperty]
-    private bool _editorWrap = true;
+    private bool _editorWrap;
 
     [ObservableProperty]
     private double _editorFontSize = 13;

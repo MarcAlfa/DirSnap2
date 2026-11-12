@@ -146,6 +146,15 @@ public sealed class ConfigService : IConfigService
             Current.SortMtimeDefaultApplied = true;
         }
 
+        // v0.2.2: word wrap is off by default; tabs saved before had it on. Applied once.
+        if (!Current.WrapOffDefaultApplied)
+        {
+            foreach (var tab in Current.Workspace.Tabs)
+                tab.EditorWrap = false;
+            Current.EditorWrap = false;
+            Current.WrapOffDefaultApplied = true;
+        }
+
         if (Current.Workspace.Tabs.Count == 0)
         {
             Current.Workspace.Tabs.Add(new WorkspaceTabState

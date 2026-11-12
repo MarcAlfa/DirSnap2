@@ -47,7 +47,7 @@ public sealed class WorkspaceTabState
     public string? SelectedFile { get; set; }
 
     [JsonPropertyName("editor_wrap")]
-    public bool EditorWrap { get; set; } = true;
+    public bool EditorWrap { get; set; }
 }
 
 public sealed class WorkspaceState
@@ -86,7 +86,7 @@ public sealed class AppConfig
     public List<string> EditorExtensions { get; set; } = new() { ".md", ".txt", ".json" };
 
     [JsonPropertyName("editor_wrap")]
-    public bool EditorWrap { get; set; } = true;
+    public bool EditorWrap { get; set; }
 
     [JsonPropertyName("editor_font_size")]
     public double EditorFontSize { get; set; } = 13;
@@ -109,6 +109,10 @@ public sealed class AppConfig
     /// <summary>One-time switch (v0.1.1) of the saved tabs to the new default sort: last modified first.</summary>
     [JsonPropertyName("sort_mtime_default_applied")]
     public bool SortMtimeDefaultApplied { get; set; }
+
+    /// <summary>One-time switch (v0.2.2) of the saved tabs to the new default: word wrap off.</summary>
+    [JsonPropertyName("wrap_off_default_applied")]
+    public bool WrapOffDefaultApplied { get; set; }
 
     [JsonPropertyName("find_match_case")]
     public bool FindMatchCase { get; set; }

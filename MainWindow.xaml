@@ -367,7 +367,7 @@
                         Click="AiAssistantWidgetButton_Click"
                         ToolTipService.ToolTip="Open AI Assistant (Ctrl+I)"
                         Padding="10,5">
-                    <TextBlock Text="✨ AI" FontWeight="SemiBold" FontSize="12" />
+                    <TextBlock x:Name="AiAssistantButtonText" Text="✨ AI" FontWeight="SemiBold" FontSize="12" />
                     <FlyoutBase.AttachedFlyout>
                         <Flyout x:Name="AiChatFlyout" Placement="BottomEdgeAlignedRight" Opened="AiChatFlyout_Opened">
                             <Flyout.FlyoutPresenterStyle>

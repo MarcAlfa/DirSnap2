@@ -67,6 +67,17 @@ public sealed partial class MainWindow : Window
         FlyoutAiChatPanel.DataContext = ViewModel.AiChat;
         FlyoutAiChatPanel.HostWindow = this;
 
+        // The AI button turns accent-filled while a chat of this session is open
+        _aiButtonDefaultStyle = AiAssistantWidgetButton.Style;
+        ViewModel.AiChat.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(AiChatViewModel.HasMessages))
+                UpdateAiButtonState();
+            else if (e.PropertyName == nameof(AiChatViewModel.IsBusy))
+                UpdateAiButtonPulse();
+        };
+        UpdateAiButtonState();
+
         // 3. Apply Mica Backdrop
         TryApplyMicaBackdrop();
 
@@ -697,6 +708,64 @@ public sealed partial class MainWindow : Window
     }
 
     private void AiAssistantWidgetButton_Click(object sender, RoutedEventArgs e) => OpenAiAssistant();
+
+    private Style? _aiButtonDefaultStyle;
+    private Microsoft.UI.Xaml.Media.Animation.Storyboard? _aiButtonPulse;
+
+    /// <summary>The AI button pulses (slow fade in/out) while a reply is being thought or written.</summary>
+    private void UpdateAiButtonPulse()
+    {
+        try
+        {
+            if (ViewModel.AiChat.IsBusy)
+            {
+                if (_aiButtonPulse == null)
+                {
+                    var fade = new Microsoft.UI.Xaml.Media.Animation.DoubleAnimation
+                    {
+                        From = 1.0,
+                        To = 0.35,
+                        Duration = new Duration(TimeSpan.FromMilliseconds(700)),
+                        AutoReverse = true,
+                        RepeatBehavior = Microsoft.UI.Xaml.Media.Animation.RepeatBehavior.Forever,
+                        EasingFunction = new Microsoft.UI.Xaml.Media.Animation.SineEase
+                        {
+                            EasingMode = Microsoft.UI.Xaml.Media.Animation.EasingMode.EaseInOut
+                        }
+                    };
+                    Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTarget(fade, AiAssistantWidgetButton);
+                    Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTargetProperty(fade, "Opacity");
+                    _aiButtonPulse = new Microsoft.UI.Xaml.Media.Animation.Storyboard();
+                    _aiButtonPulse.Children.Add(fade);
+                }
+                _aiButtonPulse.Begin();
+            }
+            else
+            {
+                _aiButtonPulse?.Stop();
+                AiAssistantWidgetButton.Opacity = 1.0;
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Warn($"[MainWindow] AI button pulse: {ex.Message}");
+        }
+    }
+
+    private void UpdateAiButtonState()
+    {
+        bool active = ViewModel.AiChat.HasMessages;
+        AiAssistantWidgetButton.Style = active && Application.Current.Resources.TryGetValue("AppAccentButtonStyle", out var s)
+            ? s as Style
+            : _aiButtonDefaultStyle;
+        if (active)
+            AiAssistantButtonText.Foreground = new SolidColorBrush(Colors.White);
+        else
+            AiAssistantButtonText.ClearValue(TextBlock.ForegroundProperty);
+        ToolTipService.SetToolTip(AiAssistantWidgetButton, active
+            ? "AI Assistant - chat in progress (Ctrl+I)"
+            : "Open AI Assistant (Ctrl+I)");
+    }
 
     private void AiChatFlyout_Opened(object sender, object e)
     {
