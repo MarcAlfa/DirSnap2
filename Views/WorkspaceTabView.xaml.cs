@@ -540,6 +540,71 @@ public sealed partial class WorkspaceTabView : UserControl
             OpenInNewTabRequested?.Invoke(item.Path);
     }
 
+    private void ItemContextMenu_Opening(object sender, object e)
+    {
+        if (sender is not MenuFlyout flyout)
+            return;
+
+        var openWithSub = flyout.Items.OfType<MenuFlyoutSubItem>()
+            .FirstOrDefault(i => i.Tag as string == "OpenWithSubMenu");
+        var extItem = openWithSub?.Items.OfType<MenuFlyoutItem>()
+            .FirstOrDefault(i => i.Tag as string == "OpenWithExternal");
+        if (extItem == null)
+            return;
+
+        var extPath = ViewModel?.ConfigService?.Current.ExternalEditorPath?.Trim();
+        if (!string.IsNullOrEmpty(extPath) && File.Exists(extPath))
+        {
+            extItem.Text = Path.GetFileNameWithoutExtension(extPath);
+            extItem.IsEnabled = true;
+        }
+        else
+        {
+            extItem.Text = "External editor (configure in Settings)";
+            extItem.IsEnabled = false;
+        }
+    }
+
+    private void Context_OpenWithDefault_Click(object sender, RoutedEventArgs e)
+    {
+        var item = GetContextItem(sender) ?? ViewModel?.SelectedItem;
+        if (item == null) return;
+        try
+        {
+            Process.Start(new ProcessStartInfo(item.Path) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error($"[Context_OpenWithDefault_Click] Failed to open {item.Path}", ex);
+        }
+    }
+
+    private void Context_OpenWithExternal_Click(object sender, RoutedEventArgs e)
+    {
+        var extPath = ViewModel?.ConfigService?.Current.ExternalEditorPath?.Trim();
+        if (string.IsNullOrEmpty(extPath) || !File.Exists(extPath))
+            return;
+
+        var items = GetActionItems(GetContextItem(sender));
+        if (items.Count == 0)
+            return;
+
+        try
+        {
+            var args = string.Join(" ", items.Select(i => $"\"{i.Path}\""));
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = extPath,
+                Arguments = args,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error($"[Context_OpenWithExternal_Click] Failed to launch {extPath}", ex);
+        }
+    }
+
     private void Context_OpenExplorer_Click(object sender, RoutedEventArgs e)
     {
         if (ViewModel?.SelectedItem is { } item)
@@ -922,6 +987,33 @@ public sealed partial class WorkspaceTabView : UserControl
         {
             AppLogger.Error("[CopyEditorTextButton_Click] Error copying text", ex);
         }
+    }
+
+    public bool IsEditorTextBoxFocused =>
+        EditorTextBox.Visibility == Visibility.Visible &&
+        !EditorTextBox.IsReadOnly &&
+        EditorTextBox.FocusState != FocusState.Unfocused;
+
+    private void EditorTextBox_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key != VirtualKey.Tab || EditorTextBox.IsReadOnly)
+            return;
+
+        var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control);
+        var alt = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Menu);
+        if ((ctrl & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0 ||
+            (alt & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0)
+            return;
+
+        var shift = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift);
+        if ((shift & Windows.UI.Core.CoreVirtualKeyStates.Down) == 0)
+        {
+            int start = EditorTextBox.SelectionStart;
+            EditorTextBox.SelectedText = "\t";
+            EditorTextBox.Select(start + 1, 0);
+        }
+
+        e.Handled = true;
     }
 
     private void EditorTextBox_KeyDown(object sender, KeyRoutedEventArgs e)

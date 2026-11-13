@@ -5,9 +5,9 @@
     <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
     <RootNamespace>DirSnap2</RootNamespace>
     <AssemblyName>DirSnap2</AssemblyName>
-    <Version>0.2.5</Version>
-    <AssemblyVersion>0.2.5.0</AssemblyVersion>
-    <FileVersion>0.2.5.0</FileVersion>
+    <Version>0.2.6</Version>
+    <AssemblyVersion>0.2.6.0</AssemblyVersion>
+    <FileVersion>0.2.6.0</FileVersion>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>assets\app_icon.ico</ApplicationIcon>
     <Platforms>x64</Platforms>
@@ -33,6 +33,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="app_icon.ico" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="assets\**\*" CopyToOutputDirectory="PreserveNewest" />
     <!-- First-run defaults: used when config.json does not exist yet -->
     <Content Include="config.example.json" CopyToOutputDirectory="PreserveNewest" />

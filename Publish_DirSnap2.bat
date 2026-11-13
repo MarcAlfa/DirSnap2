@@ -31,6 +31,13 @@ if errorlevel 1 (
     exit /b 1
 )
 
+dotnet build DirSnap2.csproj -c Debug -p:Platform=x64
+if errorlevel 1 (
+    echo.
+    echo Debug build FAILED.
+    exit /b 1
+)
+
 powershell -NoProfile -Command "Compress-Archive -Path '%OUT%' -DestinationPath '%ZIP%' -CompressionLevel Optimal"
 if errorlevel 1 (
     echo.

@@ -183,3 +183,10 @@ Development history, from the first setup to the current version. The [README](R
   - [x] Version bump to `0.2.5` across `AppConstants.cs`, `DirSnap2.csproj`, and `app.manifest`
   - [x] Outline for C# (`.cs`: classes, structs, interfaces, enums, records, with their methods and constructors; local functions, properties and fields are left out), PowerShell (`.ps1`/`.psm1`: `function`, `filter`, `class`, `enum`, skipping `<# #>` comments) and batch files (`.bat`/`.cmd`: `:labels`, without `::` comments and `:eof`).
   - [x] PL/SQL: procedures and functions declared inside another procedure or function are not listed (package members are all kept). Bodies are tracked with BEGIN / CASE / END counting (`END IF` / `END LOOP` ignored, multi-line headers, `LANGUAGE` / `EXTERNAL` bodies), reset at every `CREATE` and `/`.
+- [x] **Phase 24: Version 0.2.6 - Tab Navigation Disabled, Editor Tab Indent, Taskbar Icon & Root `.ico`**
+  - [x] Version bump to `0.2.6` across `AppConstants.cs`, `DirSnap2.csproj`, `app.manifest`, and `README.md`
+  - [x] Disabled `Tab` / `Shift+Tab` focus cycling across all form controls (`Ctrl+Tab` / `Ctrl+Shift+Tab` still switch workspace tabs)
+  - [x] File editor (`EditorTextBox`): pressing `Tab` while editing inserts a tab character (`\t`) instead of moving focus
+  - [x] Taskbar & window icon: regenerated `assets\app_icon.ico` with standard Windows BMP/DIB + 256px PNG frames, added `app_icon.ico` to root (copied to publish output), and added Win32 `WM_SETICON` / `SetClassLongPtr` fallback in `TitleBarHelper.ApplyWindowIcon` so the taskbar icon displays reliably on fresh Windows 11 machines
+  - [x] `Publish_DirSnap2.bat`: also runs `dotnet build -c Debug -p:Platform=x64` so `Start_DirSnap2.bat` stays in sync with the published version
+  - [x] **Open with** in the right-click context menu: submenu with *Default app* and a configurable external editor (`external_editor_path` in Settings → *External Editor (Open with)* with *Browse…* picker, supporting single or multiple selected files)

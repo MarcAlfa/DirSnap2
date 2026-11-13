@@ -9,7 +9,7 @@ public static class AppConstants
     /// <summary>
     /// Fixed application version
     /// </summary>
-    public const string AppVersion = "0.2.5";
+    public const string AppVersion = "0.2.6";
 
     public const string AppName = "DirSnap 2";
     public const string AppTitle = $"{AppName} v{AppVersion}";

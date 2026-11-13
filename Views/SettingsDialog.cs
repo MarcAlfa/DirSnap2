@@ -388,6 +388,9 @@ public sealed class SettingsDialog : ContentDialog
         snapPanel.Children.Add(_extCheck);
         rootStack.Children.Add(snapPanel);
 
+        // ==================== EXTERNAL EDITOR (OPEN WITH) ====================
+        BuildExternalEditorSection(rootStack);
+
         // ==================== AI ASSISTANT ====================
         BuildAiSection(rootStack);
 
@@ -561,6 +564,91 @@ public sealed class SettingsDialog : ContentDialog
         if (_addBtn != null) _addBtn.Background = accentBrush;
         if (_openAboutBtn != null) _openAboutBtn.Background = accentBrush;
         if (_aiTestBtn != null) _aiTestBtn.Background = accentBrush;
+    }
+
+    private void BuildExternalEditorSection(StackPanel rootStack)
+    {
+        rootStack.Children.Add(CreateSectionHeader("📝 External Editor (Open with)"));
+
+        var helpText = new TextBlock
+        {
+            Text = "Optional program used by the right-click 'Open with' menu (e.g. sublime_text.exe, Code.exe, notepad++.exe):",
+            FontSize = 11,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(8, 0, 0, 2)
+        };
+        rootStack.Children.Add(helpText);
+
+        var row = new Grid
+        {
+            ColumnSpacing = 6,
+            Margin = new Thickness(8, 2, 0, 0)
+        };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var editorBox = new TextBox
+        {
+            Text = _configService.Current.ExternalEditorPath ?? string.Empty,
+            PlaceholderText = @"Path to .exe (e.g. C:\Program Files\Sublime Text\sublime_text.exe)",
+            FontSize = 12
+        };
+        editorBox.TextChanged += (_, _) =>
+        {
+            _configService.Current.ExternalEditorPath = editorBox.Text?.Trim() ?? string.Empty;
+            _configService.Save();
+        };
+
+        var browseBtn = new Button
+        {
+            Content = "Browse…",
+            Padding = new Thickness(12, 6, 12, 6),
+            FontSize = 12
+        };
+        browseBtn.Click += async (_, _) =>
+        {
+            try
+            {
+                var picker = new Windows.Storage.Pickers.FileOpenPicker();
+                picker.FileTypeFilter.Add(".exe");
+                picker.FileTypeFilter.Add(".bat");
+                picker.FileTypeFilter.Add(".cmd");
+                picker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.ComputerFolder;
+
+                if (_parentWindow != null)
+                {
+                    var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(_parentWindow);
+                    WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+                }
+
+                var file = await picker.PickSingleFileAsync();
+                if (file != null)
+                {
+                    editorBox.Text = file.Path;
+                }
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error("[SettingsDialog] External editor picker failed", ex);
+            }
+        };
+
+        var clearBtn = new Button
+        {
+            Content = "Clear",
+            Padding = new Thickness(10, 6, 10, 6),
+            FontSize = 12
+        };
+        clearBtn.Click += (_, _) => editorBox.Text = string.Empty;
+
+        Grid.SetColumn(editorBox, 0);
+        Grid.SetColumn(browseBtn, 1);
+        Grid.SetColumn(clearBtn, 2);
+        row.Children.Add(editorBox);
+        row.Children.Add(browseBtn);
+        row.Children.Add(clearBtn);
+        rootStack.Children.Add(row);
     }
 
     private static TextBlock CreateSectionHeader(string text)

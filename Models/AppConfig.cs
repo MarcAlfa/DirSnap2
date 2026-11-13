@@ -76,6 +76,10 @@ public sealed class AppConfig
     [JsonPropertyName("include_extension")]
     public bool IncludeExtension { get; set; } = true;
 
+    /// <summary>Optional path to an external editor executable (e.g. sublime_text.exe, Code.exe, notepad++.exe).</summary>
+    [JsonPropertyName("external_editor_path")]
+    public string ExternalEditorPath { get; set; } = string.Empty;
+
     [JsonPropertyName("favorites")]
     public List<string> Favorites { get; set; } = new() { "C:\\" };
 

@@ -49,11 +49,7 @@ public sealed class AboutWindow : Window
         try
         {
             var appWindow = AppWindow;
-            var icoPath = Path.Combine(AppContext.BaseDirectory, "assets", "app_icon.ico");
-            if (File.Exists(icoPath))
-            {
-                appWindow.SetIcon(icoPath);
-            }
+            TitleBarHelper.ApplyWindowIcon(this, appWindow);
 
             if (parentWindow != null)
             {

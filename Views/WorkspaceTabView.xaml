@@ -391,7 +391,7 @@
 
                                 <!-- Context Menu -->
                                 <Grid.ContextFlyout>
-                                    <MenuFlyout>
+                                    <MenuFlyout Opening="ItemContextMenu_Opening">
                                         <MenuFlyoutItem Text="Add to Snap List" Click="Context_AddToSnapList_Click">
                                             <MenuFlyoutItem.Icon>
                                                 <FontIcon Glyph="&#xE710;" />
@@ -440,6 +440,21 @@
                                                 <FontIcon Glyph="&#xE8A7;" />
                                             </MenuFlyoutItem.Icon>
                                         </MenuFlyoutItem>
+                                        <MenuFlyoutSubItem Text="Open with" Tag="OpenWithSubMenu">
+                                            <MenuFlyoutSubItem.Icon>
+                                                <FontIcon Glyph="&#xE7AC;" />
+                                            </MenuFlyoutSubItem.Icon>
+                                            <MenuFlyoutItem Text="Default app" Click="Context_OpenWithDefault_Click">
+                                                <MenuFlyoutItem.Icon>
+                                                    <FontIcon Glyph="&#xE8A7;" />
+                                                </MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                            <MenuFlyoutItem Text="External editor (configure in Settings)" Tag="OpenWithExternal" Click="Context_OpenWithExternal_Click">
+                                                <MenuFlyoutItem.Icon>
+                                                    <FontIcon Glyph="&#xE70F;" />
+                                                </MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                        </MenuFlyoutSubItem>
                                         <MenuFlyoutItem Text="Open in Explorer" Click="Context_OpenExplorer_Click">
                                             <MenuFlyoutItem.Icon>
                                                 <FontIcon Glyph="&#xEC50;" />
@@ -898,6 +913,7 @@
                          Padding="12"
                          BorderThickness="0"
                          Background="Transparent"
+                         PreviewKeyDown="EditorTextBox_PreviewKeyDown"
                          KeyDown="EditorTextBox_KeyDown"
                          TextChanged="EditorTextBox_TextChanged"
                          Visibility="Collapsed" />

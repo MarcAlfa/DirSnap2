@@ -59,6 +59,7 @@ public sealed partial class MainWindow : Window
         if (Content is FrameworkElement root)
         {
             root.DataContext = ViewModel;
+            root.PreviewKeyDown += Root_PreviewKeyDown;
         }
 
         Title = AppConstants.AppTitle;
@@ -199,6 +200,26 @@ public sealed partial class MainWindow : Window
         Add(VirtualKey.F1, None, () => _ = ShowShortcutsAsync());
     }
 
+    private void Root_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key != VirtualKey.Tab)
+            return;
+
+        // Keep Ctrl+Tab / Ctrl+Shift+Tab (workspace tab switching) and Alt+Tab working
+        var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control);
+        var alt = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Menu);
+        if ((ctrl & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0 ||
+            (alt & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0)
+            return;
+
+        // When editing a file in EditorTextBox, let EditorTextBox_PreviewKeyDown insert a tab character
+        if (CurrentWorkspaceView?.IsEditorTextBoxFocused == true)
+            return;
+
+        // Disable Tab focus cycling across all other form controls
+        e.Handled = true;
+    }
+
     private bool IsContentDialogOpen()
     {
         try
@@ -277,8 +298,8 @@ public sealed partial class MainWindow : Window
             AppTitleText.Text = AppConstants.AppName;
             AppVersionText.Text = $"v{AppConstants.AppVersion}";
 
-            var icoPath = Path.Combine(AppContext.BaseDirectory, "assets", "app_icon.ico");
-            if (File.Exists(icoPath))
+            var icoPath = TitleBarHelper.ResolveAppIconPath();
+            if (icoPath != null)
                 AppTitleBarIcon.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(icoPath));
 
             UpdateTitleBarColors();
@@ -337,11 +358,7 @@ public sealed partial class MainWindow : Window
         try
         {
             var appWindow = AppWindow;
-            var icoPath = Path.Combine(AppContext.BaseDirectory, "assets", "app_icon.ico");
-            if (File.Exists(icoPath))
-            {
-                appWindow.SetIcon(icoPath);
-            }
+            TitleBarHelper.ApplyWindowIcon(this, appWindow);
 
             // Restore geometry & monitor index
             WindowPlacementService.RestoreWindow(appWindow, _configService.Current.Window);

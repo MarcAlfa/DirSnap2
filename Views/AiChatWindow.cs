@@ -74,8 +74,8 @@ public sealed class AiChatWindow : Window
         _titleContent = (FrameworkElement)_titleBar.Children[0];
         var host = (Border)_root.Children[1];
 
-        var icoPath = Path.Combine(AppContext.BaseDirectory, "assets", "app_icon.ico");
-        if (File.Exists(icoPath) && ((StackPanel)_titleContent).Children[0] is Image icon)
+        var icoPath = TitleBarHelper.ResolveAppIconPath();
+        if (icoPath != null && ((StackPanel)_titleContent).Children[0] is Image icon)
             icon.Source = new BitmapImage(new Uri(icoPath));
 
         bool pinned = configService.Current.AiWindowPinned;
@@ -138,12 +138,11 @@ public sealed class AiChatWindow : Window
             presenter.IsAlwaysOnTop = onTop;
     }
 
-    private void ConfigureAppWindow(AppWindow mainAppWindow, bool pinned, string icoPath)
+    private void ConfigureAppWindow(AppWindow mainAppWindow, bool pinned, string? icoPath)
     {
         try
         {
-            if (File.Exists(icoPath))
-                AppWindow.SetIcon(icoPath);
+            TitleBarHelper.ApplyWindowIcon(this, AppWindow);
 
             var saved = _configService.Current.AiWindow;
             if (saved != null)

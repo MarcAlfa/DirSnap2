@@ -2,7 +2,7 @@
 
 **DirSnap 2** is a fast Windows 11 file browser with a built-in text preview and editor, made for working with folders full of notes, scripts and code (Markdown, PL/SQL, Python, JavaScript...). It is written in **C# / .NET 8 / WinUI 3** (Windows App SDK, unpackaged) and replaces the Python/Tkinter DirSnap v1.
 
-- **Current version**: `0.2.5` (single source: `AppConstants.AppVersion` in `AppConstants.cs`)
+- **Current version**: `0.2.6` (single source: `AppConstants.AppVersion` in `AppConstants.cs`)
 - **History**: [CHANGELOG.md](CHANGELOG.md) · **Next ideas**: [TODO.md](TODO.md)
 - **UI language**: English
 - **License**: [MIT](LICENSE)
@@ -63,12 +63,12 @@ Under the list: the files and subfolders of the folder **selected** in the list,
 ## Preview & editor
 
 - **Instant read-only preview** of the files whose extension is enabled in Settings (e.g. `.md`, `.txt`, `.json`, `.sql`, `.bat`); other text files can be previewed on request, never modified. Binary and over 5 MB files are not opened.
-- **Edit mode** (`Ctrl+E`, or double-click), save with `Ctrl+S`. Unsaved changes are never lost: switching file, tab or closing asks first; a file changed on disk by another program is detected before saving.
+- **Edit mode** (`Ctrl+E`, or double-click), save with `Ctrl+S`, indent with `Tab` (Tab focus cycling across form controls is disabled). Unsaved changes are never lost: switching file, tab or closing asks first; a file changed on disk by another program is detected before saving.
 - **Encoding and line endings preserved**: UTF-8, UTF-8 BOM, ANSI (Windows-1252); CRLF / LF / CR.
 - **Markdown** shown with syntax colors; **JSON** formatter and validator; word wrap; adjustable font size.
 - **Find in file** (`Ctrl+F` in the preview, `F3` / `Shift+F3`), also in read-only mode, with match counter and *Match case*.
 - **Line counter** in the footer (`Ln 12 / 340`) and **Go to line** (`Ctrl+G` or click on the counter).
-- **Outline** panel: functions, procedures, classes and headings of the open file (PL/SQL, also inside `.txt` files, Python, JavaScript/TypeScript, C#, PowerShell, `.bat`/`.cmd` labels, Markdown; PL/SQL subprograms declared inside another procedure or function are not listed). Click an entry to jump to it; the entry you are reading is highlighted while scrolling.
+- **Outline** panel: functions, procedures, classes and headings of the open file (PL/SQL, Python, JavaScript/TypeScript, C#, PowerShell, `.bat`/`.cmd`, Markdown). Click an entry to jump to it; the entry you are reading is highlighted while scrolling.
 
 ## Snap List
 
@@ -123,7 +123,7 @@ Then start `Start_DirSnap2.bat` (it runs `bin\x64\Debug\net8.0-windows10.0.26100
 
 ### Release package
 
-`Publish_DirSnap2.bat` builds the self-contained Release into `publish\DirSnap2\` and zips it as `publish\DirSnap2_vX.Y.Z_win-x64.zip` (version read from `DirSnap2.csproj`), ready to attach to a GitHub Release.
+`Publish_DirSnap2.bat` builds the self-contained Release into `publish\DirSnap2\`, zips it as `publish\DirSnap2_vX.Y.Z_win-x64.zip` (version read from `DirSnap2.csproj`), and updates the Debug build used by `Start_DirSnap2.bat`.
 
 ## Project structure
 
