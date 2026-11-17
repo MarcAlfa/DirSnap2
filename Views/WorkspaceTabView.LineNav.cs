@@ -82,10 +82,10 @@ public sealed partial class WorkspaceTabView
             int count = MarkdownRichTextBlock.Blocks.Count;
             FooterLineText.Text = count == 1 ? "1 line" : $"{count:N0} lines";
         }
-        else if (EditorTextBox.Visibility == Visibility.Visible)
+        else if (IsTextEditorVisible)
         {
-            var text = EditorTextBox.Text ?? string.Empty;
-            int caret = Math.Clamp(EditorTextBox.SelectionStart, 0, text.Length);
+            var text = GetEditorText();
+            int caret = Math.Clamp(GetEditorSelectionStart(), 0, text.Length);
             // Vectorized count: fast even on the 5 MB maximum
             int line = text.AsSpan(0, caret).Count('\r') + 1;
             int total = text.AsSpan().Count('\r') + 1;
@@ -108,14 +108,15 @@ public sealed partial class WorkspaceTabView
         if (vm is not { IsPreviewUnlocked: true, HasActiveFile: true } || XamlRoot == null) return;
 
         bool markdown = MarkdownScrollViewer.Visibility == Visibility.Visible;
-        if (!markdown && EditorTextBox.Visibility != Visibility.Visible) return;
+        if (!markdown && !IsTextEditorVisible) return;
 
+        var editorText = markdown ? string.Empty : GetEditorText();
         int total = markdown
             ? MarkdownRichTextBlock.Blocks.Count
-            : (EditorTextBox.Text ?? string.Empty).AsSpan().Count('\r') + 1;
+            : editorText.AsSpan().Count('\r') + 1;
         int current = markdown
             ? GetMarkdownLineAt(0.0) + 1
-            : (EditorTextBox.Text ?? string.Empty).AsSpan(0, Math.Clamp(EditorTextBox.SelectionStart, 0, (EditorTextBox.Text ?? string.Empty).Length)).Count('\r') + 1;
+            : editorText.AsSpan(0, Math.Clamp(GetEditorSelectionStart(), 0, editorText.Length)).Count('\r') + 1;
 
         var box = new TextBox
         {
@@ -168,8 +169,8 @@ public sealed partial class WorkspaceTabView
             return;
 
         GoToLine(target - 1, string.Empty, topRatio: 1.0 / 3);
-        if (EditorTextBox.Visibility == Visibility.Visible)
-            EditorTextBox.Focus(FocusState.Programmatic); // the caret shows where the line is
+        if (IsTextEditorVisible)
+            FocusTextEditor(); // the caret shows where the line is
     }
 
     /// <summary>
@@ -198,7 +199,7 @@ public sealed partial class WorkspaceTabView
         int line;
         if (MarkdownScrollViewer.Visibility == Visibility.Visible)
             line = GetMarkdownLineAt(OutlineFollowRatio);
-        else if (EditorTextBox.Visibility == Visibility.Visible)
+        else if (IsTextEditorVisible)
             line = GetEditorLineAt(OutlineFollowRatio);
         else
             return;
@@ -263,13 +264,13 @@ public sealed partial class WorkspaceTabView
     /// </summary>
     private int GetEditorLineAt(double ratio)
     {
-        HookEditorScrollViewer();
-        var sv = _editorScrollViewer;
+        var sv = GetEditorScrollViewer();
         if (sv == null) return -1;
+        var editor = ActiveTextEditor;
 
         if (_editorLineStarts == null)
         {
-            var text = EditorTextBox.Text ?? string.Empty;
+            var text = GetEditorText();
             _editorTextLength = text.Length;
             var starts = new List<int>(1024) { 0 };
             for (int i = text.IndexOf('\r'); i >= 0; i = text.IndexOf('\r', i + 1))
@@ -282,12 +283,12 @@ public sealed partial class WorkspaceTabView
 
         double viewport = sv.ViewportHeight;
         double target = viewport * ratio;
-        double padTop = EditorTextBox.Padding.Top;
-        double contentHeight = Math.Max(1, sv.ExtentHeight - padTop - EditorTextBox.Padding.Bottom);
+        double padTop = editor.Padding.Top;
+        double contentHeight = Math.Max(1, sv.ExtentHeight - padTop - editor.Padding.Bottom);
         int line = (int)Math.Clamp((sv.VerticalOffset + target - padTop) / contentHeight * total, 0, total - 1);
 
         int lastIndex = Math.Max(0, _editorTextLength - 1);
-        double Top(int l) => EditorTextBox.GetRectFromCharacterIndex(Math.Min(lineStarts[l], lastIndex), false).Top;
+        double Top(int l) => GetEditorCharRect(Math.Min(lineStarts[l], lastIndex)).Top;
         bool Plausible(double top) => top > -viewport * 4 && top < viewport * 5;
 
         // Exact without wrapping (uniform line height); with wrapping, walk to the right line

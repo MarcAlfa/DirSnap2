@@ -190,3 +190,11 @@ Development history, from the first setup to the current version. The [README](R
   - [x] Taskbar & window icon: regenerated `assets\app_icon.ico` with standard Windows BMP/DIB + 256px PNG frames, added `app_icon.ico` to root (copied to publish output), and added Win32 `WM_SETICON` / `SetClassLongPtr` fallback in `TitleBarHelper.ApplyWindowIcon` so the taskbar icon displays reliably on fresh Windows 11 machines
   - [x] `Publish_DirSnap2.bat`: also runs `dotnet build -c Debug -p:Platform=x64` so `Start_DirSnap2.bat` stays in sync with the published version
   - [x] **Open with** in the right-click context menu: submenu with *Default app* and a configurable external editor (`external_editor_path` in Settings → *External Editor (Open with)* with *Browse…* picker, supporting single or multiple selected files)
+- [x] **Phase 25: Version 0.2.7 - Markdown Editing with Syntax Colors**
+  - [x] Version bump to `0.2.7` across `AppConstants.cs`, `DirSnap2.csproj`, `app.manifest`, and `README.md`
+  - [x] Editing a `.md` file keeps the preview colors (headings, bold, code and ``` blocks, lists, links): the Markdown editor is a `RichEditBox` used as plain text (`WorkspaceTabView.MarkdownEdit.cs`), recolored shortly after each change on the changed lines only (to the end of the file when a fence is involved). Other files keep the `TextBox` editor.
+  - [x] Shared line tokenizer in `MarkdownHighlighter` (`TokenizeLine`), used by both the preview and the editor
+  - [x] Plain-text behavior: paste inserts text only, RichEdit formatting shortcuts blocked, `Shift+Enter` / `Ctrl+Enter` insert a normal line break, own right-click menu (Cut, Copy, Paste, Undo, Redo, Select All), no selection toolbar
+  - [x] `Ctrl+Z` / `Ctrl+Y` undo and redo text changes only (color steps are skipped)
+  - [x] Find, Outline, Go to line, line counter, TOP button, `Tab` indent and `Ctrl+S` work in the Markdown editor too
+  - [x] The document is loaded after the editor's first layout (loading it right after it becomes visible crashed); font size converted from pixels to RichEdit points

@@ -43,8 +43,8 @@ public sealed partial class WorkspaceTabView
         UpdateFilterBarState();
 
         // Pre-fill with the text selected in the preview (single line)
-        string selected = EditorTextBox.Visibility == Visibility.Visible
-            ? EditorTextBox.SelectedText
+        string selected = IsTextEditorVisible
+            ? GetEditorSelectedText()
             : MarkdownRichTextBlock.SelectedText;
         if (!string.IsNullOrWhiteSpace(selected) && selected.Length <= 200 && selected.IndexOfAny(new[] { '\r', '\n' }) < 0)
             FileSearchTextBox.Text = selected;

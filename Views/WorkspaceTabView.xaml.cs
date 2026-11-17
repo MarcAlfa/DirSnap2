@@ -44,6 +44,7 @@ public sealed partial class WorkspaceTabView : UserControl
         InitFindAndOutline();
         InitFolderPeek();
         InitLineNav();
+        InitMarkdownEdit();
         EditorTextBox.Loaded += (_, _) => HookEditorScrollViewer();
 
         DataContextChanged += OnDataContextChanged;
@@ -66,6 +67,7 @@ public sealed partial class WorkspaceTabView : UserControl
             ScheduleFolderPeek();
             MarkdownRichTextBlock.FontSize = _currentVm.EditorFontSize;
             EditorTextBox.FontSize = _currentVm.EditorFontSize;
+            MarkdownEditBox.FontSize = _currentVm.EditorFontSize;
             _currentVm.SyncSelectedFile();
             UpdateEditorViewMode();
             UpdateOutline();
@@ -114,6 +116,8 @@ public sealed partial class WorkspaceTabView : UserControl
             {
                 MarkdownRichTextBlock.FontSize = ViewModel.EditorFontSize;
                 EditorTextBox.FontSize = ViewModel.EditorFontSize;
+                MarkdownEditBox.FontSize = ViewModel.EditorFontSize;
+                if (IsMarkdownEditVisible) RecolorMarkdownEdit(full: true); // the colors carry the size
             }
         }
     }
@@ -124,6 +128,7 @@ public sealed partial class WorkspaceTabView : UserControl
         {
             MarkdownScrollViewer.Visibility = Visibility.Collapsed;
             EditorTextBox.Visibility = Visibility.Collapsed;
+            HideMarkdownEditor();
             ScrollToTopButton.Visibility = Visibility.Collapsed;
             if (IsFindOpen) CloseFind(focusEditor: false);
             return;
@@ -134,6 +139,7 @@ public sealed partial class WorkspaceTabView : UserControl
         ScrollViewer.SetHorizontalScrollBarVisibility(EditorTextBox, scrollMode);
         ScrollViewer.SetVerticalScrollBarVisibility(EditorTextBox, ScrollBarVisibility.Auto);
         ScrollViewer.SetVerticalScrollMode(EditorTextBox, ScrollMode.Auto);
+        ScrollViewer.SetHorizontalScrollBarVisibility(MarkdownEditBox, scrollMode);
         MarkdownRichTextBlock.TextWrapping = ViewModel.EditorTextWrapping;
         EditorTextBox.TextWrapping = ViewModel.EditorTextWrapping;
 
@@ -146,10 +152,19 @@ public sealed partial class WorkspaceTabView : UserControl
             InvalidateLineNavMarkdown();
             MarkdownScrollViewer.Visibility = Visibility.Visible;
             EditorTextBox.Visibility = Visibility.Collapsed;
+            HideMarkdownEditor();
+        }
+        else if (ViewModel.IsMarkdownFile)
+        {
+            // Editing Markdown: the colored editor (RichEditBox, plain text)
+            MarkdownScrollViewer.Visibility = Visibility.Collapsed;
+            EditorTextBox.Visibility = Visibility.Collapsed;
+            ShowMarkdownEditor();
         }
         else
         {
             MarkdownScrollViewer.Visibility = Visibility.Collapsed;
+            HideMarkdownEditor();
             EditorTextBox.Visibility = Visibility.Visible;
             HookEditorScrollViewer();
         }
@@ -990,9 +1005,10 @@ public sealed partial class WorkspaceTabView : UserControl
     }
 
     public bool IsEditorTextBoxFocused =>
-        EditorTextBox.Visibility == Visibility.Visible &&
-        !EditorTextBox.IsReadOnly &&
-        EditorTextBox.FocusState != FocusState.Unfocused;
+        (EditorTextBox.Visibility == Visibility.Visible &&
+         !EditorTextBox.IsReadOnly &&
+         EditorTextBox.FocusState != FocusState.Unfocused) ||
+        (IsMarkdownEditVisible && MarkdownEditBox.FocusState != FocusState.Unfocused);
 
     private void EditorTextBox_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
     {
@@ -1040,18 +1056,24 @@ public sealed partial class WorkspaceTabView : UserControl
 
     private void HookEditorScrollViewer()
     {
-        if (_editorScrollViewer != null)
-            return;
-
-        _editorScrollViewer = FindVisualChild<ScrollViewer>(EditorTextBox);
-        if (_editorScrollViewer != null)
+        if (_editorScrollViewer == null)
         {
-            _editorScrollViewer.ViewChanged += (_, _) =>
-            {
-                UpdateScrollToTopButtonVisibility();
-                ScheduleOutlineFollow();
-            };
+            _editorScrollViewer = FindVisualChild<ScrollViewer>(EditorTextBox);
+            if (_editorScrollViewer != null)
+                _editorScrollViewer.ViewChanged += (_, _) => OnEditorViewChanged();
         }
+        if (_mdEditScrollViewer == null)
+        {
+            _mdEditScrollViewer = FindVisualChild<ScrollViewer>(MarkdownEditBox);
+            if (_mdEditScrollViewer != null)
+                _mdEditScrollViewer.ViewChanged += (_, _) => OnEditorViewChanged();
+        }
+    }
+
+    private void OnEditorViewChanged()
+    {
+        UpdateScrollToTopButtonVisibility();
+        ScheduleOutlineFollow();
     }
 
     private void UpdateScrollToTopButtonVisibility()
@@ -1061,13 +1083,9 @@ public sealed partial class WorkspaceTabView : UserControl
         {
             verticalOffset = MarkdownScrollViewer.VerticalOffset;
         }
-        else if (EditorTextBox.Visibility == Visibility.Visible)
+        else if (IsTextEditorVisible && GetEditorScrollViewer() is { } sv)
         {
-            HookEditorScrollViewer();
-            if (_editorScrollViewer != null)
-            {
-                verticalOffset = _editorScrollViewer.VerticalOffset;
-            }
+            verticalOffset = sv.VerticalOffset;
         }
 
         ScrollToTopButton.Visibility = verticalOffset > 80 ? Visibility.Visible : Visibility.Collapsed;
@@ -1079,14 +1097,10 @@ public sealed partial class WorkspaceTabView : UserControl
         {
             MarkdownScrollViewer.ChangeView(null, 0, null, false);
         }
-        else if (EditorTextBox.Visibility == Visibility.Visible)
+        else if (IsTextEditorVisible)
         {
-            HookEditorScrollViewer();
-            if (_editorScrollViewer != null)
-            {
-                _editorScrollViewer.ChangeView(null, 0, null, false);
-            }
-            EditorTextBox.Select(0, 0);
+            GetEditorScrollViewer()?.ChangeView(null, 0, null, false);
+            SelectInEditor(0, 0);
         }
     }
 

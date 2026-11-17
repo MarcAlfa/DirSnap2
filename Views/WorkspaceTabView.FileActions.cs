@@ -687,8 +687,8 @@ public sealed partial class WorkspaceTabView
             vm.UnlockEditor();
             DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
             {
-                if (EditorTextBox.Visibility == Visibility.Visible)
-                    EditorTextBox.Focus(FocusState.Programmatic);
+                if (IsTextEditorVisible)
+                    FocusTextEditor();
             });
         }
         vm.StatusMessage = $"Created '{Path.GetFileName(path)}'";

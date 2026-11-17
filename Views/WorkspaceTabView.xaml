@@ -918,6 +918,29 @@
                          TextChanged="EditorTextBox_TextChanged"
                          Visibility="Collapsed" />
 
+                <!-- State 3C: Markdown editor with syntax colors (plain text only, see WorkspaceTabView.MarkdownEdit.cs) -->
+                <RichEditBox x:Name="MarkdownEditBox"
+                             TextWrapping="{Binding EditorTextWrapping}"
+                             AcceptsReturn="True"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                             ScrollViewer.VerticalScrollMode="Auto"
+                             ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                             ScrollViewer.HorizontalScrollMode="Auto"
+                             FontFamily="Consolas, Cascadia Code, Courier New"
+                             FontSize="{Binding EditorFontSize}"
+                             Padding="12"
+                             BorderThickness="0"
+                             Background="Transparent"
+                             IsSpellCheckEnabled="False"
+                             IsTextPredictionEnabled="False"
+                             ClipboardCopyFormat="PlainText"
+                             DisabledFormattingAccelerators="All"
+                             PreviewKeyDown="MarkdownEditBox_PreviewKeyDown"
+                             KeyDown="EditorTextBox_KeyDown"
+                             TextChanged="MarkdownEditBox_TextChanged"
+                             Paste="MarkdownEditBox_Paste"
+                             Visibility="Collapsed" />
+
                 <!-- Scroll to Top floating button (appears when scrolled down, like on websites) -->
                 <Button x:Name="ScrollToTopButton"
                         Click="ScrollToTopButton_Click"

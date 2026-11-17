@@ -99,8 +99,8 @@ public sealed partial class WorkspaceTabView
         if (ViewModel is not { IsPreviewUnlocked: true }) return;
 
         // Pre-fill with the selected text (single line, like most editors)
-        string selected = EditorTextBox.Visibility == Visibility.Visible
-            ? EditorTextBox.SelectedText
+        string selected = IsTextEditorVisible
+            ? GetEditorSelectedText()
             : MarkdownRichTextBlock.SelectedText;
         if (!string.IsNullOrEmpty(selected) && selected.Length <= 200 && selected.IndexOfAny(new[] { '\r', '\n' }) < 0)
         {
@@ -152,8 +152,8 @@ public sealed partial class WorkspaceTabView
 
         if (focusEditor)
         {
-            if (EditorTextBox.Visibility == Visibility.Visible)
-                EditorTextBox.Focus(FocusState.Programmatic); // the selection (last match) stays
+            if (IsTextEditorVisible)
+                FocusTextEditor(); // the selection (last match) stays
             else if (MarkdownScrollViewer.Visibility == Visibility.Visible)
                 MarkdownScrollViewer.Focus(FocusState.Programmatic);
         }
@@ -215,7 +215,7 @@ public sealed partial class WorkspaceTabView
         }
         else
         {
-            var text = EditorTextBox.Text ?? string.Empty;
+            var text = GetEditorText();
             int idx = 0;
             while ((idx = text.IndexOf(query, idx, comparison)) >= 0)
             {
@@ -225,7 +225,7 @@ public sealed partial class WorkspaceTabView
             // Start from the caret, so "find" continues from where the user is reading/typing
             int caret = _pendingFindLine >= 0
                 ? GetEditorLineStart(text, _pendingFindLine)
-                : previous?.Index ?? EditorTextBox.SelectionStart;
+                : previous?.Index ?? GetEditorSelectionStart();
             startFrom = _findMatches.FindIndex(m => m.Index >= caret);
         }
         _pendingFindLine = -1;
@@ -284,7 +284,7 @@ public sealed partial class WorkspaceTabView
         else
         {
             SetEditorSelectionHighlight();
-            EditorTextBox.Select(m.Index, m.Length);
+            SelectInEditor(m.Index, m.Length);
             ScrollEditorToIndex(m.Index);
         }
     }
@@ -405,11 +405,11 @@ public sealed partial class WorkspaceTabView
     /// </summary>
     private void ScrollEditorToIndex(int index, double topRatio = 1.0 / 3)
     {
-        HookEditorScrollViewer();
-        var sv = _editorScrollViewer;
+        var sv = GetEditorScrollViewer();
         if (sv == null) return;
+        var editor = ActiveTextEditor;
 
-        var text = EditorTextBox.Text ?? string.Empty;
+        var text = GetEditorText();
         index = Math.Clamp(index, 0, Math.Max(0, text.Length - 1));
         int version = ++_editorScrollVersion;
 
@@ -424,8 +424,8 @@ public sealed partial class WorkspaceTabView
             }
         }
         double viewport = sv.ViewportHeight;
-        double padTop = EditorTextBox.Padding.Top;
-        double contentHeight = Math.Max(0, sv.ExtentHeight - padTop - EditorTextBox.Padding.Bottom);
+        double padTop = editor.Padding.Top;
+        double contentHeight = Math.Max(0, sv.ExtentHeight - padTop - editor.Padding.Bottom);
         double lineHeight = contentHeight / total;
         double estimatedTop = padTop + contentHeight * line / total;
         bool estimatedVisible = estimatedTop >= sv.VerticalOffset && estimatedTop + lineHeight <= sv.VerticalOffset + viewport;
@@ -439,8 +439,8 @@ public sealed partial class WorkspaceTabView
         timer.Tick += (_, _) =>
         {
             timer.Stop();
-            if (version != _editorScrollVersion || !ReferenceEquals(sv, _editorScrollViewer)) return;
-            var rect = EditorTextBox.GetRectFromCharacterIndex(Math.Clamp(index, 0, Math.Max(0, (EditorTextBox.Text ?? string.Empty).Length - 1)), false);
+            if (version != _editorScrollVersion || !ReferenceEquals(sv, GetEditorScrollViewer())) return;
+            var rect = GetEditorCharRect(Math.Clamp(index, 0, Math.Max(0, GetEditorText().Length - 1)));
             double vp = sv.ViewportHeight;
             double? targetY = null;
             // Ignore implausible rects (text still not laid out): the coarse jump stays
@@ -465,7 +465,10 @@ public sealed partial class WorkspaceTabView
     {
         // The match must stay visible while the focus is in the find box
         if (Application.Current.Resources.TryGetValue("AppAccentBrush", out var b) && b is SolidColorBrush accent)
+        {
             EditorTextBox.SelectionHighlightColorWhenNotFocused = new SolidColorBrush(accent.Color);
+            MarkdownEditBox.SelectionHighlightColorWhenNotFocused = new SolidColorBrush(accent.Color);
+        }
     }
 
     private void FindButton_Click(object sender, RoutedEventArgs e)
@@ -623,9 +626,9 @@ public sealed partial class WorkspaceTabView
             return;
         }
 
-        if (EditorTextBox.Visibility != Visibility.Visible) return;
+        if (!IsTextEditorVisible) return;
 
-        var all = EditorTextBox.Text ?? string.Empty;
+        var all = GetEditorText();
         int index = 0;
         for (int l = 0; l < line && index >= 0; l++)
         {
@@ -641,13 +644,12 @@ public sealed partial class WorkspaceTabView
 
         SetEditorSelectionHighlight();
         if (nameCol >= 0)
-            EditorTextBox.Select(index + nameCol, name.Length);
+            SelectInEditor(index + nameCol, name.Length);
         else
-            EditorTextBox.Select(index, 0);
+            SelectInEditor(index, 0);
 
         // Put the definition near the top of the view
-        HookEditorScrollViewer();
-        _editorScrollViewer?.ChangeView(0, null, null, true);
+        GetEditorScrollViewer()?.ChangeView(0, null, null, true);
         ScrollEditorToIndex(index, topRatio);
     }
 }
