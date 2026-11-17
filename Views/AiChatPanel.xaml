@@ -32,6 +32,21 @@
                     CornerRadius="10,10,2,10" Padding="10,7">
                 <StackPanel Spacing="4">
                     <TextBlock Text="{Binding Content}" TextWrapping="Wrap" IsTextSelectionEnabled="True" FontSize="12.5" />
+                    <ItemsControl ItemsSource="{Binding Thumbnails}"
+                                  Visibility="{Binding HasThumbnails, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" Spacing="6" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border CornerRadius="4" BorderBrush="{ThemeResource AppBorderBrush}" BorderThickness="1">
+                                    <Image Source="{Binding}" Height="64" MaxWidth="160" Stretch="Uniform" />
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                     <TextBlock Text="{Binding ContextSummary}" FontSize="10.5" Opacity="0.75"
                                Visibility="{Binding HasContextSummary, Converter={StaticResource BoolToVisibilityConverter}}" />
                 </StackPanel>
@@ -52,6 +67,9 @@
                     </StackPanel>
                     <TextBlock Text="{Binding Content}" TextWrapping="Wrap" IsTextSelectionEnabled="True"
                                FontFamily="Segoe UI" FontSize="12.5" />
+                    <TextBlock Text="{Binding TimingText}" FontSize="10.5" Opacity="0.6"
+                               ToolTipService.ToolTip="Request start → end · duration"
+                               Visibility="{Binding HasTimingText, Converter={StaticResource BoolToVisibilityConverter}}" />
                     <StackPanel Orientation="Horizontal" Spacing="2" Margin="-6,2,0,0"
                                 Visibility="{Binding ShowActions, Converter={StaticResource BoolToVisibilityConverter}}">
                         <Button Style="{StaticResource AiBubbleActionStyle}" Click="CopyReply_Click" Tag="{Binding}"
@@ -89,7 +107,11 @@
                     CornerRadius="10,10,10,2" Padding="10,7">
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <FontIcon Glyph="&#xE783;" FontSize="13" Foreground="{ThemeResource SystemFillColorCriticalBrush}" VerticalAlignment="Top" Margin="0,2,0,0" />
-                    <TextBlock Text="{Binding Content}" TextWrapping="Wrap" IsTextSelectionEnabled="True" FontSize="12.5" MaxWidth="480" />
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="{Binding Content}" TextWrapping="Wrap" IsTextSelectionEnabled="True" FontSize="12.5" MaxWidth="480" />
+                        <TextBlock Text="{Binding TimingText}" FontSize="10.5" Opacity="0.6"
+                                   Visibility="{Binding HasTimingText, Converter={StaticResource BoolToVisibilityConverter}}" />
+                    </StackPanel>
                 </StackPanel>
             </Border>
         </DataTemplate>
@@ -202,10 +224,10 @@
                     </CheckBox>
                 </StackPanel>
 
-                <!-- Tabs with an open file: the current one is ticked, tick more to compare (5 rows, then scroll) -->
+                <!-- Tabs with an open file: the current one is ticked, tick more to compare (all 9 tabs fit: 9 rows x 30 px) -->
                 <Border BorderBrush="{ThemeResource AppBorderBrush}" BorderThickness="1" CornerRadius="4" Margin="0,2,0,0"
                         Visibility="{Binding HasTabItems, Converter={StaticResource BoolToVisibilityConverter}}">
-                    <ScrollViewer MaxHeight="152" VerticalScrollBarVisibility="Visible" HorizontalScrollBarVisibility="Disabled">
+                    <ScrollViewer MaxHeight="274" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <ItemsControl ItemsSource="{Binding TabItems}" Padding="6,1,14,1">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
@@ -280,16 +302,53 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <TextBox Grid.Row="0" Grid.Column="0" x:Name="InputBox"
+            <!-- Pasted screenshots / files waiting to be sent with the next question -->
+            <ScrollViewer Grid.Row="0" Grid.ColumnSpan="2" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                          HorizontalScrollMode="Auto" VerticalScrollMode="Disabled" Padding="0,0,0,2"
+                          Visibility="{Binding HasAttachments, Converter={StaticResource BoolToVisibilityConverter}}">
+                <ItemsControl ItemsSource="{Binding Attachments}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" Spacing="6" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Background="{ThemeResource AppSurfaceBrush}" BorderBrush="{ThemeResource AppBorderBrush}" BorderThickness="1"
+                                    CornerRadius="6" Padding="4,3,2,3" ToolTipService.ToolTip="{Binding ToolTip}">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Image Source="{Binding Thumbnail}" Height="32" MaxWidth="56" Stretch="Uniform"
+                                           Visibility="{Binding IsImage, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                    <FontIcon Glyph="&#xE8A5;" FontSize="16" Margin="4,0,0,0"
+                                              Visibility="{Binding IsFile, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Name}" FontSize="11" MaxWidth="160" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding SizeText}" FontSize="10" Opacity="0.6" />
+                                    </StackPanel>
+                                    <Button Click="RemoveAttachment_Click" Tag="{Binding}" Padding="5" VerticalAlignment="Center"
+                                            Background="Transparent" BorderThickness="0" CornerRadius="4"
+                                            ToolTipService.ToolTip="Remove">
+                                        <FontIcon Glyph="&#xE711;" FontSize="9" />
+                                    </Button>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <TextBox Grid.Row="1" Grid.Column="0" x:Name="InputBox"
                      Text="{Binding InputText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                     PlaceholderText="Ask about selected files... (Enter to send, Shift+Enter for a new line)"
+                     PlaceholderText="Ask about selected files... (Enter to send, Shift+Enter for a new line, Ctrl+V pastes screenshots and files)"
                      AcceptsReturn="True" TextWrapping="Wrap" MinHeight="60" MaxHeight="160" FontSize="12.5"
                      ScrollViewer.VerticalScrollBarVisibility="Auto"
-                     PreviewKeyDown="InputBox_PreviewKeyDown" />
+                     PreviewKeyDown="InputBox_PreviewKeyDown"
+                     Paste="InputBox_Paste" />
 
-            <Button Grid.Row="0" Grid.Column="1" x:Name="SendButton" Click="Send_Click" VerticalAlignment="Bottom"
+            <Button Grid.Row="1" Grid.Column="1" x:Name="SendButton" Click="Send_Click" VerticalAlignment="Bottom"
                     Padding="12,8" Style="{StaticResource AppAccentButtonStyle}"
                     ToolTipService.ToolTip="Send (Enter) / Stop the reply">
                 <StackPanel Orientation="Horizontal" Spacing="6">
@@ -298,7 +357,7 @@
                 </StackPanel>
             </Button>
 
-            <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Text="{Binding ContextInfoText}" FontSize="10.5" Opacity="0.7"
+            <TextBlock Grid.Row="2" Grid.ColumnSpan="2" Text="{Binding ContextInfoText}" FontSize="10.5" Opacity="0.7"
                        TextTrimming="CharacterEllipsis" />
         </Grid>
     </Grid>

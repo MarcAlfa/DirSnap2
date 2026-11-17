@@ -198,3 +198,12 @@ Development history, from the first setup to the current version. The [README](R
   - [x] `Ctrl+Z` / `Ctrl+Y` undo and redo text changes only (color steps are skipped)
   - [x] Find, Outline, Go to line, line counter, TOP button, `Tab` indent and `Ctrl+S` work in the Markdown editor too
   - [x] The document is loaded after the editor's first layout (loading it right after it becomes visible crashed); font size converted from pixels to RichEdit points
+- [x] **Phase 26: Version 0.2.8 - Markdown Editor Crash Fix, Faster File Switching, Paste Images in AI Chat**
+  - [x] Version bump to `0.2.8` across `AppConstants.cs`, `DirSnap2.csproj`, `app.manifest`, and `README.md`
+  - [x] Markdown editor: the text is loaded after a layout pass every time the editor is shown (selecting a `.md` while editing another file crashed with an AccessViolation in `RichEditBox.Document.SetText`); the document is not touched until then
+  - [x] Loading indicator in the middle of the preview for files of 128 KB and more opened from the list (drawn before the load; skipped when the selection has already moved on); load time in the log (`[FileLoad]`)
+  - [x] The editor view is updated once per file switch, after the file is loaded: before, the previous file's text was first rendered as Markdown (about 2 s from a 10k-line file to a `.md`)
+  - [x] Outline refreshed right after a file is loaded (the 400 ms pause stays while typing)
+  - [x] Tabs: maximum 9 (`MainViewModel.MaxTabs`); AI Assistant: the list of tabs with a file shows all of them without scrolling
+  - [x] AI Assistant: start, end and duration of each request under the reply and in the log (with the time to the first text)
+  - [x] AI Assistant: `Ctrl+V` attaches a screenshot or files copied in Explorer (chips with preview and remove button, up to 5 images / 10 attachments). Images are scaled to 2000 px max and sent as PNG (JPEG when heavy) in the OpenAI-compatible, Gemini and Anthropic formats, and stay in the history; other files are attached as text context. Text (and Excel cells) pastes as before.

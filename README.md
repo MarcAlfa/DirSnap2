@@ -2,7 +2,7 @@
 
 **DirSnap 2** is a fast Windows 11 file browser with a built-in text preview and editor, made for working with folders full of notes, scripts and code (Markdown, PL/SQL, Python, JavaScript...). It is written in **C# / .NET 8 / WinUI 3** (Windows App SDK, unpackaged) and replaces the Python/Tkinter DirSnap v1.
 
-- **Current version**: `0.2.7` (single source: `AppConstants.AppVersion` in `AppConstants.cs`)
+- **Current version**: `0.2.8` (single source: `AppConstants.AppVersion` in `AppConstants.cs`)
 - **History**: [CHANGELOG.md](CHANGELOG.md) · **Next ideas**: [TODO.md](TODO.md)
 - **UI language**: English
 - **License**: [MIT](LICENSE)
@@ -23,7 +23,7 @@ To update, replace the folder content with the new version: your `config.json` (
 
 ## Layout
 
-Each **tab** (up to 10, reorderable, restored at startup) has two resizable panels:
+Each **tab** (up to 9, reorderable, restored at startup) has two resizable panels:
 
 - **Left**: the file list of the current folder, with the *Folder contents* panel under it.
 - **Right**: the preview / editor of the selected file, with the find bar, the *Outline* panel and a footer (path, line counter, encoding, line endings).
@@ -80,7 +80,8 @@ A chat about your files (`✨ AI` button or `Ctrl+I`), as a flyout or detached i
 
 - **Providers**: Google Gemini, OpenAI, Anthropic Claude, Moonshot AI (Kimi) and any OpenAI-compatible server (Ollama, Groq, OpenRouter, DeepSeek), with streaming replies. Model names are free text.
 - **Quick actions**: *Compare Tabs*, *Explain*, *Find Bugs*, *Summarize*.
-- **Replies**: copy, save as a timestamped `.md` in the current folder, or *Send to Editor* (replace or append, unsaved until `Ctrl+S`; a reply with one code block sends only the code). The whole chat can be exported as `.md`.
+- **Paste** (`Ctrl+V` in the input): a screenshot or images copied in Explorer are sent as images (to models that read images) and stay in the chat for follow-up questions; other copied files are attached as text.
+- **Replies**: start, end and duration shown under each reply (and in the log); copy, save as a timestamped `.md` in the current folder, or *Send to Editor* (replace or append, unsaved until `Ctrl+S`; a reply with one code block sends only the code). The whole chat can be exported as `.md`.
 - API keys are stored encrypted for your Windows user (DPAPI). The chat lives in memory only.
 
 ## Keyboard shortcuts

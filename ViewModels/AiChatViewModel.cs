@@ -91,6 +91,7 @@ public sealed partial class AiChatViewModel : ObservableObject
         _aiService = aiService;
 
         Messages.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasMessages));
+        InitAttachments();
 
         TabItems.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasTabItems));
 
@@ -215,7 +216,7 @@ public sealed partial class AiChatViewModel : ObservableObject
     private static bool TabHasFile(WorkspaceTabViewModel tab) =>
         tab.HasActiveFile && !string.IsNullOrEmpty(tab.CurrentEditingFilePath);
 
-    /// <summary>Rebuilds the tab list (max 10 rows) and the Snap List label.</summary>
+    /// <summary>Rebuilds the tab list (one row per tab with a file, up to MainViewModel.MaxTabs) and the Snap List label.</summary>
     public void RefreshContextLabels()
     {
         _selectedTabs.RemoveWhere(t => !_main.Tabs.Contains(t));
@@ -276,6 +277,10 @@ public sealed partial class AiChatViewModel : ObservableObject
                 files.Add(new AiContextFile("Snap List", item.Path, null));
         }
 
+        // Files pasted into the input (images are sent apart, as images)
+        foreach (var attachment in Attachments.Where(a => a.FilePath != null))
+            files.Add(new AiContextFile("Pasted", attachment.FilePath!, null));
+
         string? folder = IncludeFolderList ? active?.CurrentPath : null;
         return (files, folder);
     }
@@ -304,14 +309,15 @@ public sealed partial class AiChatViewModel : ObservableObject
                 return;
 
             int max = MaxContextChars;
+            string images = ImagesSummary(Attachments.Count(a => a.IsImage));
             if (ctx.IsEmpty)
-                ContextInfoText = "No context: only your question is sent";
+                ContextInfoText = images.Length > 0 ? images : "No context: only your question is sent";
             else if (ctx.CharCount > max)
                 ContextInfoText = $"⚠ Context too large: {ctx.CharCount:N0} chars (limit {max:N0})";
             else
-                ContextInfoText = ctx.Text == _lastSentContext
+                ContextInfoText = (ctx.Text == _lastSentContext
                     ? $"{ctx.Summary} (already sent)"
-                    : ctx.Summary;
+                    : ctx.Summary) + (images.Length > 0 ? $" · {images}" : string.Empty);
         }
         catch (OperationCanceledException)
         {
@@ -342,6 +348,7 @@ public sealed partial class AiChatViewModel : ObservableObject
     {
         Stop();
         Messages.Clear();
+        Attachments.Clear();
         _lastSentContext = null;
         StatusText = string.Empty;
         RefreshSettings();
@@ -426,14 +433,22 @@ public sealed partial class AiChatViewModel : ObservableObject
                 ? context.Summary
                 : context.IsEmpty ? string.Empty : "📎 same context as before (not sent again)";
 
+            var pastedImages = Attachments.Where(a => a.IsImage).ToList();
+            string imagesSummary = ImagesSummary(pastedImages.Count);
+            if (imagesSummary.Length > 0)
+                summary = summary.Length > 0 ? $"{summary} · {imagesSummary}" : imagesSummary;
+
             userMessage = new AiMessage
             {
                 Role = AiMessageRole.User,
                 Content = question,
                 ApiContent = attach ? $"{context.Text}\n\n{question}" : question,
-                ContextSummary = summary
+                ContextSummary = summary,
+                Images = pastedImages.Count > 0 ? pastedImages.Select(a => a.Image!).ToList() : null,
+                Thumbnails = pastedImages.Count > 0 ? pastedImages.Select(a => a.Thumbnail!).ToList() : null
             };
             Messages.Add(userMessage);
+            Attachments.Clear(); // sent with this question (images stay in the history)
             if (quickPrompt == null)
                 InputText = string.Empty;
 
@@ -444,7 +459,7 @@ public sealed partial class AiChatViewModel : ObservableObject
             // History: every finished turn, without failed exchanges
             var turns = Messages
                 .Where(m => !m.ExcludeFromHistory && !string.IsNullOrWhiteSpace(m.Content))
-                .Select(m => new AiChatTurn(m.IsUser, m.IsUser ? m.ApiContent ?? m.Content : m.Content))
+                .Select(m => new AiChatTurn(m.IsUser, m.IsUser ? m.ApiContent ?? m.Content : m.Content, m.IsUser ? m.Images : null))
                 .ToList();
 
             reply = new AiMessage { Role = AiMessageRole.Assistant, IsStreaming = true };
@@ -454,11 +469,17 @@ public sealed partial class AiChatViewModel : ObservableObject
             _cts = new CancellationTokenSource();
             var sb = new StringBuilder();
             var throttle = Stopwatch.StartNew();
+            var started = DateTime.Now;
+            var elapsed = Stopwatch.StartNew();
+            TimeSpan? firstText = null;
+            string outcome = "ok";
 
             try
             {
                 await foreach (var chunk in _aiService.StreamChatAsync(settings, AiContextBuilder.SystemPrompt, turns, _cts.Token))
                 {
+                    if (firstText == null && !string.IsNullOrEmpty(chunk))
+                        firstText = elapsed.Elapsed;
                     sb.Append(chunk);
                     // Repaint at most every ~60 ms: per-token updates make long replies stutter
                     if (throttle.ElapsedMilliseconds >= 60)
@@ -477,6 +498,7 @@ public sealed partial class AiChatViewModel : ObservableObject
             }
             catch (OperationCanceledException)
             {
+                outcome = "stopped";
                 reply.Content = sb.Length > 0 ? sb + "\n\n[Stopped]" : "[Stopped]";
                 if (sb.Length == 0)
                     MarkFailed(userMessage, reply);
@@ -485,17 +507,27 @@ public sealed partial class AiChatViewModel : ObservableObject
             }
             catch (AiServiceException ex)
             {
+                outcome = "error";
                 reply.Content = ex.Message;
                 reply.IsError = true;
                 MarkFailed(userMessage, reply);
             }
             catch (Exception ex)
             {
+                outcome = "error";
                 AppLogger.Error($"[AiChat] Request failed: {ex.Message}", ex);
                 reply.Content = $"Unexpected error: {ex.Message}";
                 reply.IsError = true;
                 MarkFailed(userMessage, reply);
             }
+
+            // Start, end and duration: under the reply and in the log
+            var ended = DateTime.Now;
+            reply.TimingText = $"{started:HH:mm:ss} → {ended:HH:mm:ss} · {FormatDuration(elapsed.Elapsed)}" +
+                               (outcome == "ok" ? string.Empty : $" ({outcome})");
+            AppLogger.Info($"[AiChat] Reply {outcome}: provider={settings.Provider}, model={settings.Model}, " +
+                           $"start={started:HH:mm:ss}, end={ended:HH:mm:ss}, duration={FormatDuration(elapsed.Elapsed)}, " +
+                           $"first text after {(firstText is { } ft ? FormatDuration(ft) : "-")}, {reply.Content.Length:N0} chars");
         }
         finally
         {
@@ -508,6 +540,10 @@ public sealed partial class AiChatViewModel : ObservableObject
             ScheduleContextEstimate();
         }
     }
+
+    /// <summary>"8 s", "2 min 27 s".</summary>
+    private static string FormatDuration(TimeSpan t) =>
+        t.TotalSeconds < 60 ? $"{Math.Max(0, t.TotalSeconds):0.#} s" : $"{(int)t.TotalMinutes} min {t.Seconds} s";
 
     /// <summary>A failed exchange stays visible but is not sent again as history.</summary>
     private static void MarkFailed(AiMessage? user, AiMessage reply)

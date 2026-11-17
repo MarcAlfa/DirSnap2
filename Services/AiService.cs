@@ -61,7 +61,11 @@ public static class AiProviders
 }
 
 /// <summary>A message of the conversation as sent to the provider.</summary>
-public sealed record AiChatTurn(bool IsUser, string Text);
+/// <summary>One chat turn; a user turn may carry pasted images.</summary>
+public sealed record AiChatTurn(bool IsUser, string Text, IReadOnlyList<DirSnap2.Models.AiImage>? Images = null)
+{
+    public bool HasImages => Images is { Count: > 0 };
+}
 
 /// <summary>Settings of one request (resolved from the config at send time).</summary>
 public sealed record AiRequestSettings(string Provider, string Model, string ApiKey, string BaseUrl);
@@ -116,7 +120,9 @@ public sealed class AiService : IAiService
         if (string.IsNullOrWhiteSpace(settings.Model))
             throw new AiServiceException("No model set. Choose one in Settings → AI Assistant.");
 
-        AppLogger.Info($"[AiService] Request: provider={provider.Id}, model={settings.Model}, turns={turns.Count}");
+        int images = turns.Sum(t => t.Images?.Count ?? 0);
+        AppLogger.Info($"[AiService] Request: provider={provider.Id}, model={settings.Model}, turns={turns.Count}" +
+                       (images > 0 ? $", images={images}" : string.Empty));
 
         using var response = await SendWithRetryAsync(
             () => BuildRequest(provider.Id, settings, systemPrompt, turns), cancellationToken).ConfigureAwait(false);
@@ -288,7 +294,24 @@ public sealed class AiService : IAiService
 
         var messages = new JsonArray { new JsonObject { ["role"] = "system", ["content"] = systemPrompt } };
         foreach (var t in turns)
-            messages.Add(new JsonObject { ["role"] = t.IsUser ? "user" : "assistant", ["content"] = t.Text });
+        {
+            JsonNode content = t.Text;
+            if (t.HasImages)
+            {
+                // Vision format: text part + one image_url part per image (data URL)
+                var parts = new JsonArray { new JsonObject { ["type"] = "text", ["text"] = t.Text } };
+                foreach (var img in t.Images!)
+                {
+                    parts.Add(new JsonObject
+                    {
+                        ["type"] = "image_url",
+                        ["image_url"] = new JsonObject { ["url"] = $"data:{img.MediaType};base64,{img.Base64}" }
+                    });
+                }
+                content = parts;
+            }
+            messages.Add(new JsonObject { ["role"] = t.IsUser ? "user" : "assistant", ["content"] = content });
+        }
 
         var body = new JsonObject
         {
@@ -330,10 +353,17 @@ public sealed class AiService : IAiService
         var contents = new JsonArray();
         foreach (var t in turns)
         {
+            var parts = new JsonArray();
+            if (t.HasImages)
+            {
+                foreach (var img in t.Images!)
+                    parts.Add(new JsonObject { ["inlineData"] = new JsonObject { ["mimeType"] = img.MediaType, ["data"] = img.Base64 } });
+            }
+            parts.Add(new JsonObject { ["text"] = t.Text });
             contents.Add(new JsonObject
             {
                 ["role"] = t.IsUser ? "user" : "model",
-                ["parts"] = new JsonArray { new JsonObject { ["text"] = t.Text } }
+                ["parts"] = parts
             });
         }
 
@@ -394,7 +424,25 @@ public sealed class AiService : IAiService
     {
         var messages = new JsonArray();
         foreach (var t in turns)
-            messages.Add(new JsonObject { ["role"] = t.IsUser ? "user" : "assistant", ["content"] = t.Text });
+        {
+            JsonNode content = t.Text;
+            if (t.HasImages)
+            {
+                // Image blocks first, then the question
+                var blocks = new JsonArray();
+                foreach (var img in t.Images!)
+                {
+                    blocks.Add(new JsonObject
+                    {
+                        ["type"] = "image",
+                        ["source"] = new JsonObject { ["type"] = "base64", ["media_type"] = img.MediaType, ["data"] = img.Base64 }
+                    });
+                }
+                blocks.Add(new JsonObject { ["type"] = "text", ["text"] = t.Text });
+                content = blocks;
+            }
+            messages.Add(new JsonObject { ["role"] = t.IsUser ? "user" : "assistant", ["content"] = content });
+        }
 
         // API 2026-10-21: no temperature/top_p/top_k. Current models think adaptively by default;
         // thinking blocks are ignored, only the text deltas are shown.

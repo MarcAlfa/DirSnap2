@@ -31,6 +31,14 @@ public sealed partial class AiMessage : ObservableObject
 
     public bool HasContextSummary => !string.IsNullOrEmpty(ContextSummary);
 
+    /// <summary>Images pasted with this question: sent again with every later turn (chat history).</summary>
+    public IReadOnlyList<AiImage>? Images { get; init; }
+
+    /// <summary>Previews of <see cref="Images"/> shown in the question bubble.</summary>
+    public IReadOnlyList<Microsoft.UI.Xaml.Media.ImageSource>? Thumbnails { get; init; }
+
+    public bool HasThumbnails => Thumbnails is { Count: > 0 };
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowActions))]
     [NotifyPropertyChangedFor(nameof(ShowThinking))]
@@ -53,6 +61,13 @@ public sealed partial class AiMessage : ObservableObject
     }
 
     public string TimeText => Timestamp.ToString("HH:mm");
+
+    /// <summary>Start, end and duration of the request ("19:24:43 → 19:27:10 · 2 min 27 s"), on a finished reply.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasTimingText))]
+    private string _timingText = string.Empty;
+
+    public bool HasTimingText => !string.IsNullOrEmpty(TimingText);
 
     /// <summary>Failed exchanges stay visible but are not sent again as conversation history.</summary>
     public bool ExcludeFromHistory { get; set; }

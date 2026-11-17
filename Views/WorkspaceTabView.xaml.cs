@@ -89,7 +89,7 @@ public sealed partial class WorkspaceTabView : UserControl
             or nameof(WorkspaceTabViewModel.EditorWrap)
             or nameof(WorkspaceTabViewModel.EditorTextWrapping))
         {
-            UpdateEditorViewMode();
+            QueueEditorViewModeUpdate();
         }
 
         if (e.PropertyName is nameof(WorkspaceTabViewModel.EditorText)
@@ -97,7 +97,11 @@ public sealed partial class WorkspaceTabView : UserControl
             or nameof(WorkspaceTabViewModel.IsPreviewUnlocked)
             or nameof(WorkspaceTabViewModel.HasActiveFile))
         {
-            ScheduleOutlineRefresh();
+            // A file being loaded: outline right away; typing: after a pause
+            if (e.PropertyName == nameof(WorkspaceTabViewModel.EditorText) && ViewModel?.IsLoadingFile == true)
+                QueueOutlineRefreshNow();
+            else
+                ScheduleOutlineRefresh();
         }
 
         if (e.PropertyName is nameof(WorkspaceTabViewModel.SelectedItem) or nameof(WorkspaceTabViewModel.ShowAll))
@@ -117,8 +121,30 @@ public sealed partial class WorkspaceTabView : UserControl
                 MarkdownRichTextBlock.FontSize = ViewModel.EditorFontSize;
                 EditorTextBox.FontSize = ViewModel.EditorFontSize;
                 MarkdownEditBox.FontSize = ViewModel.EditorFontSize;
-                if (IsMarkdownEditVisible) RecolorMarkdownEdit(full: true); // the colors carry the size
+                if (IsMarkdownEditVisible && _mdDocReady) RecolorMarkdownEdit(full: true); // the colors carry the size
             }
+        }
+    }
+
+    private bool _viewModeUpdateQueued;
+
+    /// <summary>
+    /// Coalesces the view model changes of one operation into a single view update, run once the
+    /// operation is complete. Opening a file changes IsMarkdownFile before EditorText: updating
+    /// right away rendered the previous file's text as Markdown (seconds for a 10k-line file).
+    /// </summary>
+    private void QueueEditorViewModeUpdate()
+    {
+        if (_viewModeUpdateQueued) return;
+        _viewModeUpdateQueued = true;
+        if (!DispatcherQueue.TryEnqueue(() =>
+            {
+                _viewModeUpdateQueued = false;
+                UpdateEditorViewMode();
+            }))
+        {
+            _viewModeUpdateQueued = false;
+            UpdateEditorViewMode();
         }
     }
 
@@ -423,8 +449,69 @@ public sealed partial class WorkspaceTabView : UserControl
                 }
             }
 
-            vm.SelectFile(item.Path);
+            await SelectFileWithLoadingAsync(vm, item);
         }
+    }
+
+    // ==================== LOADING INDICATOR (LARGE FILES) ====================
+
+    /// <summary>Files from this size show the loading indicator while they are read and laid out.</summary>
+    private const long FileLoadingIndicatorMinBytes = 128 * 1024;
+
+    private int _fileLoadVersion;
+
+    /// <summary>
+    /// Opens a file from the list. A large file first shows the loading indicator: it is drawn
+    /// (one frame) before the load, which then blocks the UI thread until the text is laid out.
+    /// </summary>
+    private async Task SelectFileWithLoadingAsync(WorkspaceTabViewModel vm, FSItem item)
+    {
+        int version = ++_fileLoadVersion;
+        if (item.Size < FileLoadingIndicatorMinBytes)
+        {
+            vm.SelectFile(item.Path);
+            return;
+        }
+
+        FileLoadingText.Text = $"Loading {item.Name}...";
+        FileLoadingOverlay.Visibility = Visibility.Visible;
+        try
+        {
+            await WaitForNextFrameAsync();
+
+            // Moved on meanwhile (arrow keys, tab switch): the newer selection does its own load
+            // (or a double-click has already opened it)
+            if (version != _fileLoadVersion || !ReferenceEquals(vm, ViewModel) || !ReferenceEquals(FlatListView.SelectedItem, item)
+                || vm.IsCurrentFile(item.Path))
+                return;
+
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            vm.SelectFile(item.Path);
+            long selectMs = sw.ElapsedMilliseconds;
+            await WaitForNextFrameAsync(); // the text is laid out in this frame
+            AppLogger.Info($"[FileLoad] {item.Name} ({FSItem.FormatSize(item.Size)}): load {selectMs} ms, shown after {sw.ElapsedMilliseconds} ms");
+        }
+        finally
+        {
+            if (version == _fileLoadVersion)
+                FileLoadingOverlay.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    /// <summary>Completes after the next frame has been rendered (at most 500 ms, e.g. window hidden).</summary>
+    private Task WaitForNextFrameAsync()
+    {
+        var tcs = new TaskCompletionSource();
+        EventHandler<object>? handler = null;
+        handler = (_, _) =>
+        {
+            Microsoft.UI.Xaml.Media.CompositionTarget.Rendering -= handler;
+            // Low priority: runs once this frame is done
+            if (!DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => tcs.TrySetResult()))
+                tcs.TrySetResult();
+        };
+        Microsoft.UI.Xaml.Media.CompositionTarget.Rendering += handler;
+        return Task.WhenAny(tcs.Task, Task.Delay(500));
     }
 
     private void FlatListView_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)

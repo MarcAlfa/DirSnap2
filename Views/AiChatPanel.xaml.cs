@@ -200,6 +200,34 @@ public sealed partial class AiChatPanel : UserControl
             _vm.SendOrStop();
     }
 
+    /// <summary>Ctrl+V: screenshots and files copied in Explorer become attachments; text pastes as usual.</summary>
+    private void InputBox_Paste(object sender, TextControlPasteEventArgs e)
+    {
+        if (_vm == null) return;
+        DataPackageView content;
+        try
+        {
+            content = Clipboard.GetContent();
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Warn($"[AiChat] Clipboard: {ex.Message}");
+            return;
+        }
+        if (!AiChatViewModel.HasPastableAttachment(content))
+            return;
+
+        e.Handled = true;
+        _ = _vm.PasteAttachmentsAsync(content);
+    }
+
+    private void RemoveAttachment_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: AiAttachment attachment })
+            _vm?.RemoveAttachment(attachment);
+        FocusInput();
+    }
+
     private void Send_Click(object sender, RoutedEventArgs e)
     {
         _vm?.SendOrStop();

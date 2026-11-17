@@ -518,9 +518,31 @@ public sealed partial class WorkspaceTabView
 
     private void ScheduleOutlineRefresh()
     {
-        if (_outlineRefreshTimer == null) return;
+        if (_outlineRefreshTimer == null || _outlineQueuedNow) return; // an immediate refresh is coming
         _outlineRefreshTimer.Stop();
         _outlineRefreshTimer.Start();
+    }
+
+    private bool _outlineQueuedNow;
+
+    /// <summary>
+    /// File just loaded: refresh the outline as soon as the load has finished (queued, so the
+    /// view model state is complete), without the typing pause. The parsing runs in background.
+    /// </summary>
+    private void QueueOutlineRefreshNow()
+    {
+        _outlineRefreshTimer?.Stop();
+        if (_outlineQueuedNow) return;
+        _outlineQueuedNow = true;
+        if (!DispatcherQueue.TryEnqueue(() =>
+            {
+                _outlineQueuedNow = false;
+                UpdateOutline();
+            }))
+        {
+            _outlineQueuedNow = false;
+            ScheduleOutlineRefresh();
+        }
     }
 
     private async void UpdateOutline()

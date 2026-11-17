@@ -162,6 +162,9 @@ public sealed partial class MainViewModel : ObservableObject
         NotifyFavoriteProperties();
     }
 
+    /// <summary>Maximum number of workspace tabs.</summary>
+    public const int MaxTabs = 9;
+
     private void RestoreWorkspaceTabs()
     {
         Tabs.Clear();
@@ -169,7 +172,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         if (tabStates != null && tabStates.Count > 0)
         {
-            foreach (var state in tabStates.Take(10))
+            foreach (var state in tabStates.Take(MaxTabs))
             {
                 var tabVm = new WorkspaceTabViewModel(
                     _fileSystemService,
@@ -213,11 +216,8 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     public void AddNewTab(string? path = null)
     {
-        if (Tabs.Count >= 10)
-        {
-            // Maximum 10 tabs limit
+        if (Tabs.Count >= MaxTabs)
             return;
-        }
 
         var targetPath = !string.IsNullOrWhiteSpace(path)
             ? path

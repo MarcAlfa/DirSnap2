@@ -31,10 +31,10 @@ public sealed partial class WorkspaceTabView
     private bool _mdColorsValid;
     private bool _mdUpdating;                        // programmatic document changes in progress
     private bool _mdLoading;                         // SetText of a new text in progress
-    // The document can be used only after the first layout of the control (template applied):
-    // calling it right after Collapsed -> Visible crashes (AccessViolation in SetText)
-    private bool _mdEditReady;
-    private bool _mdLoadPending;
+    // The document must not be touched in the same pass that turns the editor Collapsed -> Visible
+    // (AccessViolation in SetText, native crash): every show loads the text after a layout pass.
+    private bool _mdDocReady;       // the visible editor holds the current text and can be used
+    private bool _mdLoadScheduled;  // a deferred load is waiting
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? _mdRecolorTimer;
     private ScrollViewer? _mdEditScrollViewer;
     private readonly List<MarkdownSpan> _mdSpans = new();
@@ -58,17 +58,6 @@ public sealed partial class WorkspaceTabView
         MarkdownEditBox.ContextFlyout = BuildMarkdownEditMenu();
         MarkdownEditBox.Loaded += (_, _) => HookEditorScrollViewer();
         MarkdownEditBox.SelectionChanged += (_, _) => ScheduleLineInfo();
-        MarkdownEditBox.SizeChanged += (_, _) =>
-        {
-            if (_mdEditReady) return;
-            _mdEditReady = true;
-            if (_mdLoadPending && IsMarkdownEditVisible && ViewModel != null)
-            {
-                _mdLoadPending = false;
-                LoadMarkdownEditor(ViewModel.EditorText ?? string.Empty);
-                ScheduleLineInfo();
-            }
-        };
     }
 
     // ==================== EDITOR-AGNOSTIC HELPERS ====================
@@ -78,14 +67,14 @@ public sealed partial class WorkspaceTabView
     private int GetEditorSelectionStart()
     {
         if (!IsMarkdownEditVisible) return EditorTextBox.SelectionStart;
-        if (!_mdEditReady) return 0;
+        if (!_mdDocReady) return 0;
         return Math.Clamp(MarkdownEditBox.Document.Selection.StartPosition, 0, _mdText.Length);
     }
 
     private string GetEditorSelectedText()
     {
         if (!IsMarkdownEditVisible) return EditorTextBox.SelectedText ?? string.Empty;
-        if (!_mdEditReady) return string.Empty;
+        if (!_mdDocReady) return string.Empty;
         return MarkdownEditBox.Document.Selection.Text ?? string.Empty;
     }
 
@@ -93,7 +82,7 @@ public sealed partial class WorkspaceTabView
     {
         if (IsMarkdownEditVisible)
         {
-            if (_mdEditReady) MarkdownEditBox.Document.Selection.SetRange(start, start + length);
+            if (_mdDocReady) MarkdownEditBox.Document.Selection.SetRange(start, start + length);
         }
         else
             EditorTextBox.Select(start, length);
@@ -116,7 +105,7 @@ public sealed partial class WorkspaceTabView
         if (!IsMarkdownEditVisible)
             return EditorTextBox.GetRectFromCharacterIndex(index, false);
 
-        if (!_mdEditReady) return Rect.Empty;
+        if (!_mdDocReady) return Rect.Empty;
         // RichEdit rects are relative to the text content: add the padding, remove the scrolling
         MarkdownEditBox.Document.GetRange(index, index).GetRect(PointOptions.None, out var r, out _);
         var sv = _mdEditScrollViewer;
@@ -149,15 +138,17 @@ public sealed partial class WorkspaceTabView
         MarkdownEditBox.Visibility = Visibility.Visible;
         MarkdownEditBox.TextWrapping = ViewModel.EditorTextWrapping;
 
-        if (!_mdEditReady)
+        if (!wasVisible)
         {
-            _mdLoadPending = true; // loaded by SizeChanged after the first layout
+            _mdDocReady = false;
+            ScheduleMarkdownLoad(0); // after the layout pass that shows the editor
             return;
         }
+        if (!_mdDocReady) return; // the deferred load will read the latest text
 
         var vmText = ViewModel.EditorText ?? string.Empty;
         bool same = ReferenceEquals(vmText, _mdText) || vmText == _mdText || NormalizeLineBreaks(vmText) == _mdText;
-        if (!wasVisible || !same)
+        if (!same)
         {
             LoadMarkdownEditor(vmText);
         }
@@ -171,7 +162,42 @@ public sealed partial class WorkspaceTabView
     private void HideMarkdownEditor()
     {
         _mdRecolorTimer?.Stop();
+        _mdDocReady = false;
         MarkdownEditBox.Visibility = Visibility.Collapsed;
+    }
+
+    /// <summary>Loads the view model text once the shown editor has been laid out (retries every 30 ms).</summary>
+    private void ScheduleMarkdownLoad(int attempt)
+    {
+        if (_mdLoadScheduled && attempt == 0) return;
+        _mdLoadScheduled = true;
+
+        var timer = DispatcherQueue.CreateTimer();
+        timer.Interval = TimeSpan.FromMilliseconds(30);
+        timer.IsRepeating = false;
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            if (!IsMarkdownEditVisible || _mdDocReady || ViewModel == null)
+            {
+                _mdLoadScheduled = false;
+                return;
+            }
+            if ((!MarkdownEditBox.IsLoaded || MarkdownEditBox.ActualHeight <= 0) && attempt < 100)
+            {
+                ScheduleMarkdownLoad(attempt + 1);
+                return;
+            }
+
+            _mdLoadScheduled = false;
+            LoadMarkdownEditor(ViewModel.EditorText ?? string.Empty);
+            _mdDocReady = true;
+            HookEditorScrollViewer();
+            ScheduleLineInfo();
+            ScheduleOutlineFollow();
+            ScheduleFindRefresh();
+        };
+        timer.Start();
     }
 
     private void LoadMarkdownEditor(string text)
@@ -204,7 +230,7 @@ public sealed partial class WorkspaceTabView
 
     private void MarkdownEditBox_TextChanged(object sender, RoutedEventArgs e)
     {
-        if (!IsMarkdownEditVisible || _mdLoading) return;
+        if (!IsMarkdownEditVisible || _mdLoading || !_mdDocReady) return;
         var text = ReadMarkdownEditText();
         if (text == _mdText) return; // formatting only (recolor)
 
@@ -451,6 +477,12 @@ public sealed partial class WorkspaceTabView
         bool shift = IsKeyDown(VirtualKey.Shift);
         bool alt = IsKeyDown(VirtualKey.Menu);
 
+        if (!_mdDocReady)
+        {
+            e.Handled = true; // the text is still being loaded
+            return;
+        }
+
         if (e.Key == VirtualKey.Tab)
         {
             if (ctrl || alt) return; // Ctrl+Tab switches workspace tabs
@@ -499,7 +531,7 @@ public sealed partial class WorkspaceTabView
     private void MarkdownEditBox_Paste(object sender, TextControlPasteEventArgs e)
     {
         e.Handled = true; // never paste formatted text
-        _ = PasteIntoMarkdownEditorAsync();
+        if (_mdDocReady) _ = PasteIntoMarkdownEditorAsync();
     }
 
     private async Task PasteIntoMarkdownEditorAsync()
@@ -545,7 +577,7 @@ public sealed partial class WorkspaceTabView
         MenuFlyoutItem Add(string text, Symbol icon, Action action)
         {
             var item = new MenuFlyoutItem { Text = text, Icon = new SymbolIcon(icon) };
-            item.Click += (_, _) => action();
+            item.Click += (_, _) => { if (_mdDocReady) action(); };
             menu.Items.Add(item);
             return item;
         }
@@ -561,6 +593,7 @@ public sealed partial class WorkspaceTabView
 
         menu.Opening += (_, _) =>
         {
+            if (!_mdDocReady) return;
             var doc = MarkdownEditBox.Document;
             bool hasSelection = doc.Selection.Length != 0;
             cut.IsEnabled = hasSelection;
