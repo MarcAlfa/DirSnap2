@@ -56,6 +56,8 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
 
     partial void OnIsActiveTabChanged(bool value)
     {
+        _previewVersion++;
+        _pendingStamp = null;
         UpdateAutoRefreshTimer();
         OnPropertyChanged(nameof(TabHeaderBackground));
         OnPropertyChanged(nameof(TabHeaderBorderBrush));
@@ -658,14 +660,7 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
         if (_disposed || !IsActiveTab)
             return;
 
-        try
-        {
-            ReloadOpenFileIfChangedOnDisk();
-        }
-        catch (Exception ex)
-        {
-            AppLogger.Warn($"[AutoRefresh] Open file check failed: {ex.Message}");
-        }
+        _ = ReloadOpenFileIfChangedOnDiskAsync();
 
         if (_scansInFlight == 0)
         {
@@ -983,6 +978,7 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
             return;
         }
 
+        ResetPreviewStamp();
         CurrentEditingFilePath = filePath;
         CurrentEditingFileName = Path.GetFileName(filePath);
         HasActiveFile = true;
@@ -1018,38 +1014,19 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
         bool isOversized = fileLength > TextFileService.MaxEditableSize;
         bool isBinaryContent = isKnownBinary || (!isConfigured && fileLength > 0 && IsBinaryFileFast(filePath));
 
-        if (isBinaryContent || isOversized)
+        if (isOversized)
         {
-            // Binary or oversized file: never offer text preview or unlock
-            IsLoadingFile = true;
-            try
-            {
-                OriginalText = string.Empty;
-                EditorText = string.Empty;
-                IsEditorDirty = false;
-            }
-            finally
-            {
-                IsLoadingFile = false;
-            }
-            IsPreviewUnlocked = false;
-            RequiresPreviewUnlock = true;
-            CanUnlockPreview = false;
-            IsEditorLocked = true;
-            CanUnlockToEdit = false;
-            EditorEncodingName = isBinaryContent ? "Binary" : "Oversized";
-            EditorNewlineName = "-";
+            ShowOversizedPreview(fileLength, isBinaryContent);
+            return;
+        }
 
-            if (isOversized)
-            {
-                PreviewNoticeGlyph = "\uE890";
-                PreviewNoticeText = $"File size ({FSItem.FormatSize(fileLength)}) exceeds the 5 MB preview limit.";
-            }
-            else
-            {
-                PreviewNoticeGlyph = GetBinaryGlyph(ext);
-                PreviewNoticeText = $"Binary file format ({ext}). Text preview is not available.";
-            }
+        if (isBinaryContent)
+        {
+            SetPreviewUnavailable();
+            EditorEncodingName = "Binary";
+            EditorNewlineName = "-";
+            PreviewNoticeGlyph = GetBinaryGlyph(ext);
+            PreviewNoticeText = $"Binary file format ({ext}). Text preview is not available.";
             return;
         }
 
@@ -1059,74 +1036,18 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
             try
             {
                 var result = _textFileService.ReadText(filePath);
-                IsLoadingFile = true;
-                try
-                {
-                    OriginalText = result.Content;
-                    EditorText = result.Content;
-                    IsEditorDirty = false;
-                }
-                finally
-                {
-                    IsLoadingFile = false;
-                }
-                _loadedEncoding = result.Encoding;
-                _loadedNewline = result.Newline;
-                _loadedStamp = ReadStamp(CurrentEditingFilePath);
-                _pendingStamp = null;
-                EditorHasBom = result.HasBom;
-
-                EditorEncodingName = result.HasBom ? "UTF-8 BOM" : result.Encoding.EncodingName;
-                EditorNewlineName = TextFileService.GetNewlineDisplayName(result.Newline);
-
-                IsPreviewUnlocked = true;
-                RequiresPreviewUnlock = false;
-                CanUnlockPreview = false;
-                IsEditorLocked = true; // Read-only view
-                CanUnlockToEdit = true;
+                ApplyTextPreview(result, ReadStamp(filePath));
             }
             catch (Exception ex)
             {
-                IsLoadingFile = true;
-                try
-                {
-                    OriginalText = string.Empty;
-                    EditorText = string.Empty;
-                    IsEditorDirty = false;
-                }
-                finally
-                {
-                    IsLoadingFile = false;
-                }
-                IsPreviewUnlocked = false;
-                RequiresPreviewUnlock = true;
-                CanUnlockPreview = false;
-                IsEditorLocked = true;
-                CanUnlockToEdit = false;
-                PreviewNoticeGlyph = "\uE783";
-                PreviewNoticeText = $"Cannot preview: {ex.Message}";
-                StatusMessage = $"Cannot preview: {ex.Message}";
+                ShowPreviewReadError(ex.Message);
             }
         }
         else
         {
             // Non-configured text extension: show unlock prompt
-            IsLoadingFile = true;
-            try
-            {
-                OriginalText = string.Empty;
-                EditorText = string.Empty;
-                IsEditorDirty = false;
-            }
-            finally
-            {
-                IsLoadingFile = false;
-            }
-            IsPreviewUnlocked = false;
-            RequiresPreviewUnlock = true;
+            SetPreviewUnavailable();
             CanUnlockPreview = true;
-            IsEditorLocked = true;
-            CanUnlockToEdit = false;
             EditorEncodingName = "Unknown";
             EditorNewlineName = "-";
             PreviewNoticeGlyph = "\uE890";
@@ -1136,6 +1057,7 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
 
     public void ClearFileSelection()
     {
+        ResetPreviewStamp();
         // The row highlight (accent text) follows SelectedItem and is handled in
         // OnSelectedItemChanged: do not reset it here, or a selected folder loses it.
         IsLoadingFile = true;
@@ -1169,6 +1091,75 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
 
     private FileStamp? _loadedStamp;
     private FileStamp? _pendingStamp;
+    private int _previewVersion;
+    private bool _previewCheckInFlight;
+
+    private void ResetPreviewStamp()
+    {
+        _previewVersion++;
+        _loadedStamp = null;
+        _pendingStamp = null;
+    }
+
+    private void ApplyTextPreview(TextFileReadResult result, FileStamp? stamp)
+    {
+        SetPreviewText(result.Content);
+        _loadedEncoding = result.Encoding;
+        _loadedNewline = result.Newline;
+        _loadedStamp = stamp;
+        _pendingStamp = null;
+        EditorHasBom = result.HasBom;
+        EditorEncodingName = result.HasBom ? "UTF-8 BOM" : result.Encoding.EncodingName;
+        EditorNewlineName = TextFileService.GetNewlineDisplayName(result.Newline);
+
+        IsPreviewUnlocked = true;
+        RequiresPreviewUnlock = false;
+        CanUnlockPreview = false;
+        IsEditorLocked = true;
+        CanUnlockToEdit = true;
+    }
+
+    private void SetPreviewText(string text)
+    {
+        IsLoadingFile = true;
+        try
+        {
+            OriginalText = text;
+            EditorText = text;
+            IsEditorDirty = false;
+        }
+        finally
+        {
+            IsLoadingFile = false;
+        }
+    }
+
+    private void SetPreviewUnavailable()
+    {
+        SetPreviewText(string.Empty);
+        IsPreviewUnlocked = false;
+        RequiresPreviewUnlock = true;
+        CanUnlockPreview = false;
+        IsEditorLocked = true;
+        CanUnlockToEdit = false;
+    }
+
+    private void ShowPreviewReadError(string message)
+    {
+        SetPreviewUnavailable();
+        PreviewNoticeGlyph = "\uE783";
+        PreviewNoticeText = $"Cannot preview: {message}";
+        StatusMessage = PreviewNoticeText;
+    }
+
+    private void ShowOversizedPreview(long length, bool isBinary = false)
+    {
+        SetPreviewUnavailable();
+        EditorEncodingName = isBinary ? "Binary" : "Oversized";
+        EditorNewlineName = "-";
+        PreviewNoticeGlyph = "\uE890";
+        PreviewNoticeText = $"File size ({FSItem.FormatSize(length)}) exceeds the 5 MB preview limit.";
+    }
 
     private static FileStamp? ReadStamp(string? path)
     {
@@ -1190,29 +1181,84 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
     /// Read-only preview of a file that another program has modified: show the new content.
     /// Never touches a file that is unlocked for editing or has pending edits.
     /// </summary>
-    private void ReloadOpenFileIfChangedOnDisk()
+    private async Task ReloadOpenFileIfChangedOnDiskAsync()
     {
-        if (!HasActiveFile || !IsPreviewUnlocked || IsEditorDirty || !IsEditorLocked ||
-            !IsEditAllowed || _loadedStamp is not { } loaded)
+        if (_previewCheckInFlight || !CanAutoReloadPreview ||
+            CurrentEditingFilePath is not { } path || _loadedStamp is not { } loaded)
         {
             return;
         }
 
-        if (ReadStamp(CurrentEditingFilePath) is not { } onDisk || onDisk == loaded)
+        int version = _previewVersion;
+        var pending = _pendingStamp;
+        _previewCheckInFlight = true;
+        try
         {
+            var (stamp, result, error) = await Task.Run(() => CheckPreviewOnDisk(path, loaded, pending));
+
+            // The user may have switched files or started editing during disk I/O.
+            if (version != _previewVersion || !CanAutoReloadPreview || _loadedStamp != loaded)
+                return;
+
+            // Wait for the same stamp twice before reading a file that may still be written.
+            if (stamp is not { } onDisk || onDisk == loaded || onDisk != pending)
+            {
+                _pendingStamp = stamp == loaded ? null : stamp;
+                return;
+            }
+
             _pendingStamp = null;
-            return;
+            CurrentEditingFileSizeText = FSItem.FormatSize(onDisk.Length);
+            if (onDisk.Length > TextFileService.MaxEditableSize)
+            {
+                ShowOversizedPreview(onDisk.Length);
+            }
+            else if (result != null)
+            {
+                ApplyTextPreview(result, onDisk);
+                AppLogger.Info($"[AutoRefresh] Reloaded '{CurrentEditingFileName}' after a change on disk.");
+            }
+            else if (error != null)
+            {
+                ShowPreviewReadError(error);
+            }
         }
-
-        // Wait until the file looks the same on two checks in a row: it may still be being written
-        if (_pendingStamp != onDisk)
+        catch (Exception ex)
         {
-            _pendingStamp = onDisk;
-            return;
+            AppLogger.Warn($"[AutoRefresh] Open file check failed: {ex.Message}");
+        }
+        finally
+        {
+            _previewCheckInFlight = false;
+        }
+    }
+
+    private bool CanAutoReloadPreview =>
+        !_disposed && IsActiveTab && IsEditorLocked && !IsEditorDirty && IsEditAllowed;
+
+    private (FileStamp? Stamp, TextFileReadResult? Result, string? Error) CheckPreviewOnDisk(
+        string path, FileStamp loaded, FileStamp? pending)
+    {
+        var stamp = ReadStamp(path);
+        if (stamp is not { } onDisk || onDisk == loaded || onDisk != pending ||
+            onDisk.Length > TextFileService.MaxEditableSize)
+        {
+            return (stamp, null, null);
         }
 
-        _pendingStamp = null;
-        SelectFile(CurrentEditingFilePath!);
+        TextFileReadResult? result = null;
+        string? error = null;
+        try
+        {
+            result = _textFileService.ReadText(path);
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+
+        // A write that raced with the read invalidates both the contents and any read error.
+        return ReadStamp(path) == onDisk ? (onDisk, result, error) : (null, null, null);
     }
 
     public void OpenFile(string filePath)
@@ -1316,6 +1362,8 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
         }
 
         IsEditorLocked = false;
+        _previewVersion++;
+        _pendingStamp = null;
         CanUnlockToEdit = false;
         // Text changed while read-only (Format JSON) becomes a pending edit once editable
         IsEditorDirty = !TextFileService.EqualsIgnoringNewlineStyle(EditorText, OriginalText);

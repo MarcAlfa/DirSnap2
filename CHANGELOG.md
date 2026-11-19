@@ -207,3 +207,6 @@ Development history, from the first setup to the current version. The [README](R
   - [x] Tabs: maximum 9 (`MainViewModel.MaxTabs`); AI Assistant: the list of tabs with a file shows all of them without scrolling
   - [x] AI Assistant: start, end and duration of each request under the reply and in the log (with the time to the first text)
   - [x] AI Assistant: `Ctrl+V` attaches a screenshot or files copied in Explorer (chips with preview and remove button, up to 5 images / 10 attachments). Images are scaled to 2000 px max and sent as PNG (JPEG when heavy) in the OpenAI-compatible, Gemini and Anthropic formats, and stay in the history; other files are attached as text context. Text (and Excel cells) pastes as before.
+- [x] **Phase 27: Version 0.2.9 - Background Preview Refresh**
+  - [x] Automatic refresh checks and reads open files in the background so slow disk access cannot block the window.
+  - [x] Pending refreshes are discarded when the user switches files or tabs or starts editing.
