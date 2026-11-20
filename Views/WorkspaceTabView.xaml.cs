@@ -1119,16 +1119,6 @@ public sealed partial class WorkspaceTabView : UserControl
         e.Handled = true;
     }
 
-    private void EditorTextBox_KeyDown(object sender, KeyRoutedEventArgs e)
-    {
-        var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control);
-        if ((ctrl & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0 && e.Key == VirtualKey.S)
-        {
-            ViewModel?.SaveEditorFileCommand.Execute(null);
-            e.Handled = true;
-        }
-    }
-
     private void EditorTextBox_TextChanged(object sender, TextChangedEventArgs e)
     {
         // The dirty flag is computed by the view model (EditorText is bound with

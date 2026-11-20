@@ -156,9 +156,11 @@ public sealed partial class WorkspaceTabView
 
         string? openFile = vm.HasActiveFile ? vm.CurrentEditingFilePath : null;
         string? movedOpenSource = move ? sources.FirstOrDefault(s => IsSameOrInside(openFile, s)) : null;
-        if (movedOpenSource != null && vm.IsEditorDirty)
+        if (movedOpenSource != null && (vm.IsEditorDirty || vm.IsSaving))
         {
-            await ShowMessageAsync("Paste", $"'{vm.CurrentEditingFileName}' has unsaved changes. Save or discard them before moving it.");
+            await ShowMessageAsync("Paste", vm.IsSaving
+                ? $"Wait until '{vm.CurrentEditingFileName}' finishes saving before moving it."
+                : $"'{vm.CurrentEditingFileName}' has unsaved changes. Save or discard them before moving it.");
             return;
         }
 
@@ -340,12 +342,14 @@ public sealed partial class WorkspaceTabView
         bool affectsOpenFile = isDir ? IsSameOrInside(openFile, oldPath) : vm.IsCurrentFile(oldPath);
 
         // The editor holds edits for this file (or for a file inside this folder)
-        if (affectsOpenFile && vm.IsEditorDirty)
+        if (affectsOpenFile && (vm.IsEditorDirty || vm.IsSaving))
         {
             await new ContentDialog
             {
                 Title = "Rename",
-                Content = $"'{vm.CurrentEditingFileName}' has unsaved changes. Save or discard them before renaming.",
+                Content = vm.IsSaving
+                    ? $"Wait until '{vm.CurrentEditingFileName}' finishes saving before renaming it."
+                    : $"'{vm.CurrentEditingFileName}' has unsaved changes. Save or discard them before renaming.",
                 CloseButtonText = "OK",
                 XamlRoot = XamlRoot,
                 RequestedTheme = ThemeService.ActiveTheme
@@ -530,9 +534,11 @@ public sealed partial class WorkspaceTabView
 
         try
         {
-            if (affectsOpenFile && vm.IsEditorDirty)
+            if (affectsOpenFile && (vm.IsEditorDirty || vm.IsSaving))
             {
-                await ShowMessageAsync("Delete", $"'{vm.CurrentEditingFileName}' has unsaved changes. Save or discard them before deleting.");
+                await ShowMessageAsync("Delete", vm.IsSaving
+                    ? $"Wait until '{vm.CurrentEditingFileName}' finishes saving before deleting it."
+                    : $"'{vm.CurrentEditingFileName}' has unsaved changes. Save or discard them before deleting.");
                 return;
             }
 

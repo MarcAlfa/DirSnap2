@@ -187,11 +187,7 @@ public sealed partial class MainWindow : Window
 
         // Editor
         Add(VirtualKey.S, Ctrl, () => ViewModel.ActiveTab?.SaveEditorFileCommand.Execute(null));
-        Add(VirtualKey.E, Ctrl, () =>
-        {
-            if (ViewModel.ActiveTab is { IsEditAllowed: true } tab)
-                tab.IsEditingEnabled = !tab.IsEditingEnabled;
-        });
+        Add(VirtualKey.E, Ctrl, ToggleEditorMode);
 
         // AI Assistant
         Add(VirtualKey.I, Ctrl, OpenAiAssistant);
@@ -200,16 +196,37 @@ public sealed partial class MainWindow : Window
         Add(VirtualKey.F1, None, () => _ = ShowShortcutsAsync());
     }
 
+    private void ToggleEditorMode()
+    {
+        if (ViewModel.ActiveTab is { IsEditAllowed: true } tab)
+            tab.IsEditingEnabled = !tab.IsEditingEnabled;
+    }
+
     private void Root_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
     {
-        if (e.Key != VirtualKey.Tab)
+        if (e.Key is not (VirtualKey.Tab or VirtualKey.E or VirtualKey.S))
             return;
 
+        static bool IsDown(VirtualKey key) =>
+            (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(key) & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0;
+
+        if (e.Key is VirtualKey.E or VirtualKey.S)
+        {
+            // The text controls can consume these shortcuts before window accelerators run.
+            if (CurrentWorkspaceView?.IsEditorTextBoxFocused == true && IsDown(VirtualKey.Control) &&
+                !IsDown(VirtualKey.Menu) && !IsDown(VirtualKey.Shift) && !IsContentDialogOpen())
+            {
+                e.Handled = true;
+                if (e.Key == VirtualKey.E)
+                    ToggleEditorMode();
+                else
+                    ViewModel.ActiveTab?.SaveEditorFileCommand.Execute(null);
+            }
+            return;
+        }
+
         // Keep Ctrl+Tab / Ctrl+Shift+Tab (workspace tab switching) and Alt+Tab working
-        var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control);
-        var alt = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Menu);
-        if ((ctrl & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0 ||
-            (alt & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0)
+        if (IsDown(VirtualKey.Control) || IsDown(VirtualKey.Menu))
             return;
 
         // When editing a file in EditorTextBox, let EditorTextBox_PreviewKeyDown insert a tab character
@@ -267,7 +284,7 @@ public sealed partial class MainWindow : Window
     {
         try
         {
-            if (tab.IsEditorDirty)
+            if (tab.IsEditorDirty || tab.IsSaving)
             {
                 bool proceed = await tab.ConfirmDiscardUnsavedChangesAsync(((FrameworkElement)Content).XamlRoot);
                 if (!proceed)
@@ -352,6 +369,7 @@ public sealed partial class MainWindow : Window
     }
 
     private bool _isClosingConfirmed;
+    private bool _isClosingWithPendingEdits;
 
     private void ConfigureWindow()
     {
@@ -369,22 +387,34 @@ public sealed partial class MainWindow : Window
                 if (_isClosingConfirmed)
                     return;
 
-                var dirtyTabs = ViewModel.Tabs.Where(t => t.IsEditorDirty).ToList();
+                if (_isClosingWithPendingEdits)
+                {
+                    e.Cancel = true;
+                    return;
+                }
+
+                var dirtyTabs = ViewModel.Tabs.Where(t => t.IsEditorDirty || t.IsSaving).ToList();
                 if (dirtyTabs.Count > 0)
                 {
                     e.Cancel = true;
-                    foreach (var dirtyTab in dirtyTabs)
+                    _isClosingWithPendingEdits = true;
+                    try
                     {
-                        ViewModel.ActiveTab = dirtyTab;
-                        bool proceed = await dirtyTab.ConfirmDiscardUnsavedChangesAsync(((FrameworkElement)Content).XamlRoot);
-                        if (!proceed)
+                        foreach (var dirtyTab in dirtyTabs)
                         {
-                            return; // User canceled exit
+                            ViewModel.ActiveTab = dirtyTab;
+                            bool proceed = await dirtyTab.ConfirmDiscardUnsavedChangesAsync(((FrameworkElement)Content).XamlRoot);
+                            if (!proceed)
+                                return;
                         }
-                    }
 
-                    _isClosingConfirmed = true;
-                    Close();
+                        _isClosingConfirmed = true;
+                        Close();
+                    }
+                    finally
+                    {
+                        _isClosingWithPendingEdits = false;
+                    }
                     return;
                 }
 

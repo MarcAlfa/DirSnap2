@@ -345,6 +345,9 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
     /// </summary>
     public async Task<bool> ConfirmDiscardUnsavedChangesAsync(XamlRoot? xamlRoot = null)
     {
+        if (_saveTask != null)
+            await _saveTask;
+
         if (!IsEditorDirty || string.IsNullOrEmpty(CurrentEditingFilePath))
             return true;
 
@@ -1092,10 +1095,12 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
     private FileStamp? _loadedStamp;
     private FileStamp? _pendingStamp;
     private int _previewVersion;
+    private int _documentVersion;
     private bool _previewCheckInFlight;
 
     private void ResetPreviewStamp()
     {
+        _documentVersion++;
         _previewVersion++;
         _loadedStamp = null;
         _pendingStamp = null;
@@ -1234,7 +1239,7 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
     }
 
     private bool CanAutoReloadPreview =>
-        !_disposed && IsActiveTab && IsEditorLocked && !IsEditorDirty && IsEditAllowed;
+        !_disposed && IsActiveTab && IsEditorLocked && !IsEditorDirty && !IsSaving && IsEditAllowed;
 
     private (FileStamp? Stamp, TextFileReadResult? Result, string? Error) CheckPreviewOnDisk(
         string path, FileStamp loaded, FileStamp? pending)
@@ -1276,7 +1281,7 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
         if (string.IsNullOrEmpty(CurrentEditingFilePath))
             return;
 
-        if (IsEditorDirty || !IsEditorLocked)
+        if (IsEditorDirty || !IsEditorLocked || IsSaving)
         {
             ReselectCurrentFileInList();
             return;
@@ -1385,10 +1390,17 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
     [RelayCommand]
     public Task SaveEditorFile() => SaveEditorFileAsync();
 
+    private static readonly object DiskSaveLock = new();
+    private Task<bool>? _saveTask;
+    public bool IsSaving => _saveTask != null;
+
     /// <summary>Saves the editor content. Returns true only when the file was written.</summary>
     public async Task<bool> SaveEditorFileAsync(XamlRoot? xamlRoot = null)
     {
-        if (string.IsNullOrWhiteSpace(CurrentEditingFilePath))
+        if (_saveTask != null)
+            return await _saveTask;
+
+        if (CurrentEditingFilePath is not { Length: > 0 } path)
             return false;
 
         // Locking a file with pending edits must not trap them: Save stays available
@@ -1398,43 +1410,94 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
             return false;
         }
 
-        // Another program changed the file after it was loaded here: never overwrite silently
-        if (_loadedStamp is { } loaded && ReadStamp(CurrentEditingFilePath) is { } onDisk && onDisk != loaded)
+        _saveTask = SaveEditorFileCoreAsync(path, _documentVersion, xamlRoot);
+        try
         {
-            var choice = await AskFileChangedOnDiskAsync(xamlRoot);
-            if (choice == ContentDialogResult.Secondary)
-            {
-                // Explicit choice: drop my edits and take the version on disk
-                SelectFile(CurrentEditingFilePath);
-                StatusMessage = $"Reloaded '{CurrentEditingFileName}' from disk";
-                return false;
-            }
-            if (choice != ContentDialogResult.Primary)
-            {
-                StatusMessage = $"Not saved: '{CurrentEditingFileName}' was changed on disk by another program";
-                return false;
-            }
+            return await _saveTask;
         }
+        finally
+        {
+            _saveTask = null;
+        }
+    }
+
+    private async Task<bool> SaveEditorFileCoreAsync(string path, int version, XamlRoot? xamlRoot)
+    {
+        var expected = _loadedStamp;
+        var fileName = CurrentEditingFileName;
+        var timer = Stopwatch.StartNew();
+        AppLogger.Info($"[FileSave] Started '{fileName}' ({EditorText.Length} characters)");
 
         try
         {
-            _textFileService.WriteText(CurrentEditingFilePath, EditorText, _loadedEncoding, _loadedNewline, EditorHasBom);
-            OriginalText = TextFileService.NormalizeNewlines(EditorText);
-            IsEditorDirty = false;
-            _loadedStamp = ReadStamp(CurrentEditingFilePath);
-            _pendingStamp = null;
-            if (_loadedStamp is { } saved)
+            while (!_disposed && version == _documentVersion)
             {
-                CurrentEditingFileSizeText = FSItem.FormatSize(saved.Length);
+                var text = EditorText;
+                var encoding = _loadedEncoding;
+                var newline = _loadedNewline;
+                var hasBom = EditorHasBom;
+                var (conflict, stamp, normalized) = await Task.Run(() =>
+                {
+                    // Serialize the check and write across tabs so a second save sees the first.
+                    lock (DiskSaveLock)
+                    {
+                        if (expected is { } loaded && ReadStamp(path) is { } onDisk && onDisk != loaded)
+                            return (true, (FileStamp?)onDisk, string.Empty);
+
+                        var savedText = TextFileService.NormalizeNewlines(text);
+                        _textFileService.WriteText(path, savedText, encoding, newline, hasBom);
+                        return (false, ReadStamp(path), savedText);
+                    }
+                });
+
+                if (!conflict)
+                {
+                    AppLogger.Info($"[FileSave] Wrote '{fileName}' in {timer.ElapsedMilliseconds} ms");
+                    if (!_disposed && version == _documentVersion)
+                    {
+                        OriginalText = normalized;
+                        IsEditorDirty = !TextFileService.EqualsIgnoringNewlineStyle(EditorText, OriginalText);
+                        _loadedStamp = stamp;
+                        _pendingStamp = null;
+                        if (stamp is { } saved)
+                            CurrentEditingFileSizeText = FSItem.FormatSize(saved.Length);
+                        StatusMessage = IsEditorDirty
+                            ? $"Saved '{fileName}' - newer edits are still unsaved"
+                            : $"Saved '{fileName}'";
+                    }
+                    return true;
+                }
+
+                if (_disposed || version != _documentVersion)
+                    return false;
+
+                var choice = await AskFileChangedOnDiskAsync(xamlRoot);
+                if (_disposed || version != _documentVersion)
+                    return false;
+                if (choice == ContentDialogResult.Secondary)
+                {
+                    SelectFile(path);
+                    StatusMessage = $"Reloaded '{fileName}' from disk";
+                    return false;
+                }
+                if (choice != ContentDialogResult.Primary)
+                {
+                    StatusMessage = $"Not saved: '{fileName}' was changed on disk by another program";
+                    return false;
+                }
+
+                // Overwrite only the on-disk version the user approved.
+                expected = stamp;
             }
-            StatusMessage = $"Saved '{CurrentEditingFileName}'";
-            return true;
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Error saving: {ex.Message}";
-            return false;
+            AppLogger.Error($"[FileSave] Failed to write '{fileName}'", ex);
+            if (!_disposed && version == _documentVersion)
+                StatusMessage = $"Error saving: {ex.Message}";
         }
+
+        return false;
     }
 
     private async Task<ContentDialogResult> AskFileChangedOnDiskAsync(XamlRoot? xamlRoot)

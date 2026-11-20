@@ -914,7 +914,6 @@
                          BorderThickness="0"
                          Background="Transparent"
                          PreviewKeyDown="EditorTextBox_PreviewKeyDown"
-                         KeyDown="EditorTextBox_KeyDown"
                          TextChanged="EditorTextBox_TextChanged"
                          Visibility="Collapsed" />
 
@@ -936,7 +935,6 @@
                              ClipboardCopyFormat="PlainText"
                              DisabledFormattingAccelerators="All"
                              PreviewKeyDown="MarkdownEditBox_PreviewKeyDown"
-                             KeyDown="EditorTextBox_KeyDown"
                              TextChanged="MarkdownEditBox_TextChanged"
                              Paste="MarkdownEditBox_Paste"
                              Visibility="Collapsed" />

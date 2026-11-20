@@ -210,3 +210,6 @@ Development history, from the first setup to the current version. The [README](R
 - [x] **Phase 27: Version 0.2.9 - Background Preview Refresh**
   - [x] Automatic refresh checks and reads open files in the background so slow disk access cannot block the window.
   - [x] Pending refreshes are discarded when the user switches files or tabs or starts editing.
+- [x] **Phase 28: Version 0.2.10 - Responsive File Saving and Editor Shortcuts**
+  - [x] File saves check and write to disk in the background. Edits made during a save remain pending.
+  - [x] `Ctrl+E` toggles editing with focus in the text editor. `Ctrl+S` saves from both the plain text and Markdown editors.
