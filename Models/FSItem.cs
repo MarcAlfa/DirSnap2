@@ -118,6 +118,8 @@ public sealed partial class FSItem : ObservableObject
     public string Extension =>
         IsDirectory ? string.Empty : System.IO.Path.GetExtension(Name).ToLowerInvariant();
 
+    public bool CanCopyName => Name != "..";
+
     public string Glyph
     {
         get

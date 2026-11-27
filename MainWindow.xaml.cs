@@ -384,6 +384,7 @@ public sealed partial class MainWindow : Window
             // Hook AppWindow Closing to guarantee state save and prompt for unsaved files
             appWindow.Closing += async (s, e) =>
             {
+                AppLogger.Info("[Shutdown] Main window close requested");
                 if (_isClosingConfirmed)
                     return;
 
@@ -437,6 +438,7 @@ public sealed partial class MainWindow : Window
 
     private void MainWindow_Closed(object sender, WindowEventArgs args)
     {
+        AppLogger.Info("[Shutdown] Main window closed, saving workspace");
         try
         {
             // Close detached windows if open
@@ -450,6 +452,7 @@ public sealed partial class MainWindow : Window
 
             // Save tabs and settings
             ViewModel.SaveWorkspace();
+            AppLogger.Info("[Shutdown] Main window cleanup completed");
         }
         catch (Exception ex)
         {

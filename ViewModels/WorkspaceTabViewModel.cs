@@ -1043,6 +1043,7 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
             }
             catch (Exception ex)
             {
+                AppLogger.Error($"[FileLoad] Cannot open preview for '{CurrentEditingFileName}'", ex);
                 ShowPreviewReadError(ex.Message);
             }
         }

@@ -42,6 +42,7 @@ public static class Program
             global::System.Threading.SynchronizationContext.SetSynchronizationContext(context);
             new App();
         });
+        Services.AppLogger.Info("[Shutdown] Application message loop exited");
 
         // Ensure the mutex is not garbage collected while the application is running
         if (_singleInstanceMutex != null)

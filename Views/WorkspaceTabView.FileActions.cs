@@ -38,6 +38,26 @@ public sealed partial class WorkspaceTabView
 
     // ==================== COPY ====================
 
+    private void CopyItemName_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: FSItem { CanCopyName: true } item } || ViewModel is not { } vm)
+            return;
+
+        try
+        {
+            var data = new DataPackage();
+            data.SetText(item.Name);
+            Clipboard.SetContent(data);
+            Clipboard.Flush();
+            vm.StatusMessage = $"Copied name '{item.Name}' to the clipboard";
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error($"[CopyName] Error copying '{item.Name}' to the clipboard", ex);
+            vm.StatusMessage = $"Cannot copy name '{item.Name}': {ex.Message}";
+        }
+    }
+
     private void Context_Copy_Click(object sender, RoutedEventArgs e) =>
         _ = CopyItemsToClipboardAsync(GetActionItems(GetContextItem(sender)));
 

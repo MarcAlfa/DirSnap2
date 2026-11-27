@@ -35,6 +35,7 @@ public sealed partial class WorkspaceTabView : UserControl
     public WorkspaceTabView()
     {
         InitializeComponent();
+        Unloaded += (_, _) => ResetFileLoadingIndicator();
         Loaded += (_, _) =>
         {
             UpdateEditorViewMode();
@@ -52,6 +53,7 @@ public sealed partial class WorkspaceTabView : UserControl
 
     private void OnDataContextChanged(FrameworkElement sender, DataContextChangedEventArgs args)
     {
+        ResetFileLoadingIndicator();
         if (_currentVm != null)
         {
             _currentVm.PropertyChanged -= OnViewModelPropertyChanged;
@@ -394,6 +396,7 @@ public sealed partial class WorkspaceTabView : UserControl
 
         if (_isRevertingSelection || ViewModel == null) return;
 
+        ResetFileLoadingIndicator();
         // Capture the tab: the user could switch tab while the dialog is awaited
         var vm = ViewModel;
 
@@ -460,13 +463,19 @@ public sealed partial class WorkspaceTabView : UserControl
 
     private int _fileLoadVersion;
 
+    private void ResetFileLoadingIndicator()
+    {
+        _fileLoadVersion++;
+        FileLoadingOverlay.Visibility = Visibility.Collapsed;
+    }
+
     /// <summary>
     /// Opens a file from the list. A large file first shows the loading indicator: it is drawn
     /// (one frame) before the load, which then blocks the UI thread until the text is laid out.
     /// </summary>
     private async Task SelectFileWithLoadingAsync(WorkspaceTabViewModel vm, FSItem item)
     {
-        int version = ++_fileLoadVersion;
+        int version = _fileLoadVersion;
         if (item.Size < FileLoadingIndicatorMinBytes)
         {
             vm.SelectFile(item.Path);
@@ -475,6 +484,8 @@ public sealed partial class WorkspaceTabView : UserControl
 
         FileLoadingText.Text = $"Loading {item.Name}...";
         FileLoadingOverlay.Visibility = Visibility.Visible;
+        string logPrefix = $"[FileLoad] '{item.Name}' ({FSItem.FormatSize(item.Size)})";
+        AppLogger.Info($"{logPrefix}: awaiting loading indicator frame");
         try
         {
             await WaitForNextFrameAsync();
@@ -483,13 +494,17 @@ public sealed partial class WorkspaceTabView : UserControl
             // (or a double-click has already opened it)
             if (version != _fileLoadVersion || !ReferenceEquals(vm, ViewModel) || !ReferenceEquals(FlatListView.SelectedItem, item)
                 || vm.IsCurrentFile(item.Path))
+            {
+                AppLogger.Info($"{logPrefix}: skipped after selection changed or file was already open");
                 return;
+            }
 
-            var sw = System.Diagnostics.Stopwatch.StartNew();
+            AppLogger.Info($"{logPrefix}: opening preview");
+            var sw = Stopwatch.StartNew();
             vm.SelectFile(item.Path);
-            long selectMs = sw.ElapsedMilliseconds;
-            await WaitForNextFrameAsync(); // the text is laid out in this frame
-            AppLogger.Info($"[FileLoad] {item.Name} ({FSItem.FormatSize(item.Size)}): load {selectMs} ms, shown after {sw.ElapsedMilliseconds} ms");
+            AppLogger.Info($"{logPrefix}: preview opened in {sw.ElapsedMilliseconds} ms, awaiting layout frame");
+            bool rendered = await WaitForNextFrameAsync();
+            AppLogger.Info($"{logPrefix}: {(rendered ? "layout frame processed" : "layout frame timed out")} after {sw.ElapsedMilliseconds} ms");
         }
         finally
         {
@@ -498,10 +513,10 @@ public sealed partial class WorkspaceTabView : UserControl
         }
     }
 
-    /// <summary>Completes after the next frame has been rendered (at most 500 ms, e.g. window hidden).</summary>
-    private Task WaitForNextFrameAsync()
+    /// <summary>Waits for the next frame or a 500 ms timeout while the dispatcher is responsive.</summary>
+    private async Task<bool> WaitForNextFrameAsync()
     {
-        var tcs = new TaskCompletionSource();
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         EventHandler<object>? handler = null;
         handler = (_, _) =>
         {
@@ -511,7 +526,14 @@ public sealed partial class WorkspaceTabView : UserControl
                 tcs.TrySetResult();
         };
         Microsoft.UI.Xaml.Media.CompositionTarget.Rendering += handler;
-        return Task.WhenAny(tcs.Task, Task.Delay(500));
+        try
+        {
+            return await Task.WhenAny(tcs.Task, Task.Delay(500)) == tcs.Task;
+        }
+        finally
+        {
+            Microsoft.UI.Xaml.Media.CompositionTarget.Rendering -= handler;
+        }
     }
 
     private void FlatListView_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)

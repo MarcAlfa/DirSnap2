@@ -11,6 +11,18 @@
     <UserControl.Resources>
         <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
         <converters:StringMatchConverter x:Key="StringMatchConverter" />
+        <Style x:Key="CopyItemNameButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="20" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="Height" Value="20" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="ToolTipService.ToolTip" Value="Copy name" />
+            <Setter Property="AutomationProperties.Name" Value="Copy name" />
+        </Style>
     </UserControl.Resources>
 
     <Grid>
@@ -175,8 +187,11 @@
                                             </Grid.ColumnDefinitions>
 
                                             <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                                <FontIcon Glyph="{Binding Content.Glyph}" FontSize="12" 
-                                                          Foreground="{Binding Content.GlyphBrush}" />
+                                                <Button Style="{StaticResource CopyItemNameButtonStyle}" Click="CopyItemName_Click"
+                                                        Tag="{Binding Content}">
+                                                    <FontIcon Glyph="{Binding Content.Glyph}" FontSize="12"
+                                                              Foreground="{Binding Content.GlyphBrush}" />
+                                                </Button>
                                                 <TextBlock Text="{Binding Content.Name}" 
                                                            FontWeight="{Binding Content.TreeItemFontWeight}"
                                                            Foreground="{Binding Content.TreeItemForegroundBrush}"
@@ -354,8 +369,10 @@
 
                                 <!-- Name + Icon -->
                                 <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
-                                    <FontIcon Glyph="{Binding Glyph}" FontSize="11" 
-                                              Foreground="{Binding GlyphBrush}" />
+                                    <Button Style="{StaticResource CopyItemNameButtonStyle}" Click="CopyItemName_Click"
+                                            Tag="{Binding}" IsHitTestVisible="{Binding CanCopyName}" IsTabStop="{Binding CanCopyName}">
+                                        <FontIcon Glyph="{Binding Glyph}" FontSize="11" Foreground="{Binding GlyphBrush}" />
+                                    </Button>
                                     <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" 
                                                FontSize="11.5"
                                                Foreground="{Binding ItemForegroundBrush}"
@@ -649,7 +666,9 @@
                                         <ColumnDefinition Width="115" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
-                                        <FontIcon Glyph="{Binding Glyph}" FontSize="11" Foreground="{Binding GlyphBrush}" />
+                                        <Button Style="{StaticResource CopyItemNameButtonStyle}" Click="CopyItemName_Click" Tag="{Binding}">
+                                            <FontIcon Glyph="{Binding Glyph}" FontSize="11" Foreground="{Binding GlyphBrush}" />
+                                        </Button>
                                         <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" FontSize="11"
                                                    Foreground="{Binding ItemForegroundBrush}"
                                                    FontFamily="Consolas, Cascadia Code, Courier New" VerticalAlignment="Center" />

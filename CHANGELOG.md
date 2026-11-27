@@ -213,3 +213,6 @@ Development history, from the first setup to the current version. The [README](R
 - [x] **Phase 28: Version 0.2.10 - Responsive File Saving and Editor Shortcuts**
   - [x] File saves check and write to disk in the background. Edits made during a save remain pending.
   - [x] `Ctrl+E` toggles editing with focus in the text editor. `Ctrl+S` saves from both the plain text and Markdown editors.
+- [x] **Phase 29: Version 0.2.11 - Preview Loading and Copy File or Folder Name**
+  - [x] Dismiss the preview loading indicator when the selection or tab changes. Log preview loading, layout, and shutdown stages to help diagnose freezes.
+  - [x] Click a file or folder icon in the list, tree, or Folder contents panel to copy its name, including the file extension.
